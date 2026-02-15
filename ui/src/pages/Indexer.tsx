@@ -401,13 +401,14 @@ export function Indexer() {
       {!selectedAddress && !discovering && (
         <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
           <div style={{ fontSize: "3rem", marginBottom: "1rem", opacity: 0.5 }}>
-            {/* Alien eye */}
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-              <ellipse cx="32" cy="28" rx="24" ry="28" fill="none" stroke="var(--cyan)" strokeWidth="1.5" opacity="0.3" />
-              <ellipse cx="22" cy="24" rx="7" ry="9" fill="var(--cyan)" opacity="0.15" />
-              <ellipse cx="42" cy="24" rx="7" ry="9" fill="var(--cyan)" opacity="0.15" />
-              <ellipse cx="22" cy="24" rx="4" ry="6" fill="var(--cyan)" opacity="0.4" />
-              <ellipse cx="42" cy="24" rx="4" ry="6" fill="var(--cyan)" opacity="0.4" />
+              <ellipse cx="32" cy="28" rx="24" ry="28" fill="none" stroke="#39ff14" strokeWidth="1.5" opacity="0.2" />
+              <ellipse cx="22" cy="24" rx="7" ry="9" fill="#39ff14" opacity="0.08" />
+              <ellipse cx="42" cy="24" rx="7" ry="9" fill="#39ff14" opacity="0.08" />
+              <ellipse cx="22" cy="24" rx="4" ry="6" fill="#39ff14" opacity="0.3" />
+              <ellipse cx="42" cy="24" rx="4" ry="6" fill="#39ff14" opacity="0.3" />
+              <ellipse cx="23" cy="22" rx="1.5" ry="2" fill="rgba(255,255,255,0.3)" />
+              <ellipse cx="43" cy="22" rx="1.5" ry="2" fill="rgba(255,255,255,0.3)" />
             </svg>
           </div>
           <h3 className="text-cyan" style={{ marginBottom: "0.5rem" }}>
