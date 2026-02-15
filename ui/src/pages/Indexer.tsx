@@ -10,8 +10,9 @@ import {
 type IndexerTab = "overview" | "accounts" | "insurance" | "config";
 
 export function Indexer() {
-  const { markets, loading: discovering, refresh } = useMarketDiscovery();
+  const { markets, loading: discovering, error: discoveryError, refresh } = useMarketDiscovery();
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [manualAddress, setManualAddress] = useState("");
   const { state, accounts, loading, error } = useMarketData(selectedAddress);
   const [activeTab, setActiveTab] = useState<IndexerTab>("overview");
   const [accountFilter, setAccountFilter] = useState<"all" | "user" | "lp">("all");
@@ -20,6 +21,13 @@ export function Indexer() {
     if (accountFilter === "all") return accounts;
     return accounts.filter((a) => a.kind === accountFilter);
   }, [accounts, accountFilter]);
+
+  const handleManualLoad = () => {
+    const addr = manualAddress.trim();
+    if (addr.length >= 32 && addr.length <= 44) {
+      setSelectedAddress(addr);
+    }
+  };
 
   return (
     <div className="page">
@@ -35,24 +43,60 @@ export function Indexer() {
       </p>
 
       {/* Market dropdown / selector */}
-      <div className="form-group" style={{ maxWidth: "500px", marginBottom: "2rem" }}>
-        <label className="form-label">Select Market</label>
-        <select
-          className="form-input"
-          value={selectedAddress || ""}
-          onChange={(e) => setSelectedAddress(e.target.value || null)}
-        >
-          <option value="">
-            {discovering ? "Scanning for markets..." : "Choose a market..."}
-          </option>
-          {markets.map((m) => (
-            <option key={m.address} value={m.address}>
-              {truncateAddress(m.address, 8)} — {m.state.numAccounts} accounts
-              {m.state.adminBurned ? " [BURNED]" : ""}
-              {m.state.inverted ? " (INV)" : ""}
+      {markets.length > 0 && (
+        <div className="form-group" style={{ maxWidth: "500px", marginBottom: "1rem" }}>
+          <label className="form-label">Discovered Markets</label>
+          <select
+            className="form-input"
+            value={selectedAddress || ""}
+            onChange={(e) => setSelectedAddress(e.target.value || null)}
+          >
+            <option value="">
+              {discovering ? "Scanning for markets..." : "Choose a market..."}
             </option>
-          ))}
-        </select>
+            {markets.map((m) => (
+              <option key={m.address} value={m.address}>
+                {truncateAddress(m.address, 8)} — {m.state.numAccounts} accounts
+                {m.state.adminBurned ? " [BURNED]" : ""}
+                {m.state.inverted ? " (INV)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Manual address input */}
+      <div className="form-group" style={{ maxWidth: "500px", marginBottom: "2rem" }}>
+        <label className="form-label">
+          <span>Enter Market Address</span>
+          {discovering && <span className="text-alien">Scanning...</span>}
+          {!discovering && markets.length === 0 && !discoveryError && (
+            <span className="text-muted">No markets auto-discovered</span>
+          )}
+        </label>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            className="form-input"
+            style={{ flex: 1 }}
+            placeholder="Paste slab account address..."
+            value={manualAddress}
+            onChange={(e) => setManualAddress(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleManualLoad()}
+          />
+          <button
+            className="btn-primary"
+            style={{ padding: "12px 24px", fontSize: "13px", whiteSpace: "nowrap" }}
+            onClick={handleManualLoad}
+            disabled={manualAddress.trim().length < 32}
+          >
+            Load
+          </button>
+        </div>
+        {discoveryError && (
+          <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: "8px" }}>
+            Auto-discovery unavailable (public RPC limitation). Paste a market address above to explore it.
+          </p>
+        )}
       </div>
 
       {error && (

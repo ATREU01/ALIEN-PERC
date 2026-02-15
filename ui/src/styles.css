@@ -1724,6 +1724,99 @@ input:focus, select:focus {
   filter: drop-shadow(0 0 8px var(--alien-green));
 }
 
+/* Disclaimer */
+.disclaimer-section {
+  background: rgba(255, 45, 85, 0.03);
+  border: 1px solid rgba(255, 45, 85, 0.1);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.disclaimer-text {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.disclaimer-text strong {
+  color: var(--text-secondary);
+}
+
+/* CA Copy Box */
+.ca-section {
+  text-align: center;
+  padding: 48px 24px;
+  position: relative;
+}
+
+.ca-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(10, 10, 36, 0.8);
+  border: 1px solid rgba(57, 255, 20, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  max-width: 100%;
+  cursor: pointer;
+  transition: all 0.3s;
+  animation: glow-breathe 4s ease-in-out infinite;
+}
+
+.ca-box:hover {
+  border-color: var(--alien-green);
+  box-shadow: 0 0 30px var(--alien-green-glow), 0 4px 20px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+.ca-address {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--alien-green);
+  word-break: break-all;
+  text-align: left;
+  user-select: all;
+}
+
+.ca-copy-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: rgba(57, 255, 20, 0.1);
+  border: 1px solid rgba(57, 255, 20, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--alien-green);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.ca-copy-btn:hover {
+  background: rgba(57, 255, 20, 0.2);
+  border-color: var(--alien-green);
+}
+
+.ca-copied {
+  background: rgba(0, 255, 136, 0.15) !important;
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+}
+
+.ca-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
 .footer-bottom {
   display: flex;
   justify-content: space-between;

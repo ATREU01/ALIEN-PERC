@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { useMarketDiscovery } from "../hooks/useMarketData";
+import { CONTRACT_ADDRESS } from "../lib/constants";
 
 interface HomeProps {
   onNavigate: (route: string) => void;
@@ -7,6 +8,15 @@ interface HomeProps {
 
 export function Home({ onNavigate }: HomeProps) {
   const { markets } = useMarketDiscovery();
+  const [copied, setCopied] = useState(false);
+
+  const copyCA = () => {
+    if (!CONTRACT_ADDRESS) return;
+    navigator.clipboard.writeText(CONTRACT_ADDRESS).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const totalMarkets = markets.length;
   const totalAccounts = markets.reduce((s, m) => s + m.state.numAccounts, 0);
@@ -158,6 +168,39 @@ export function Home({ onNavigate }: HomeProps) {
           </div>
         </div>
       </section>
+
+      {/* Contract Address */}
+      {CONTRACT_ADDRESS && (
+        <section className="ca-section">
+          <p className="ca-label">Contract Address (CA)</p>
+          <div className="ca-box" onClick={copyCA} title="Click to copy">
+            <span className="ca-address">{CONTRACT_ADDRESS}</span>
+            <button className={`ca-copy-btn ${copied ? "ca-copied" : ""}`}>
+              {copied ? "COPIED" : "COPY"}
+            </button>
+          </div>
+          <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: "12px" }}>
+            Click to copy. Verify on{" "}
+            <a
+              href={`https://solscan.io/token/${CONTRACT_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan"
+            >
+              Solscan
+            </a>{" "}
+            or{" "}
+            <a
+              href={`https://pump.fun/coin/${CONTRACT_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan"
+            >
+              pump.fun
+            </a>
+          </p>
+        </section>
+      )}
 
       {/* CTA */}
       <section className="cta-section">

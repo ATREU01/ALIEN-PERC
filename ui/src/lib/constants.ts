@@ -15,6 +15,10 @@ export const MATCHER_PROGRAM_ID = new PublicKey(
 export const RPC_ENDPOINT =
   import.meta.env.VITE_RPC_URL || "https://api.mainnet-beta.solana.com";
 
+// Contract Address (set via env var VITE_CONTRACT_ADDRESS after pump.fun launch)
+export const CONTRACT_ADDRESS: string =
+  import.meta.env.VITE_CONTRACT_ADDRESS || "";
+
 // Slab rent cost in SOL (approximate ~992KB account)
 export const SLAB_RENT_SOL = 7;
 export const COLLATERAL_SOL = 3;

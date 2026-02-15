@@ -98,6 +98,35 @@ export function Footer() {
           </div>
         </div>
 
+        {/* Legal Disclaimer */}
+        <div className="disclaimer-section">
+          <p className="disclaimer-text">
+            <strong>DISCLAIMER:</strong> $ALIEN is a meme coin with <strong>no intrinsic value</strong> and
+            is created purely for <strong>experimental and entertainment purposes only</strong>. This token
+            is <strong>not an investment</strong>, does not represent equity, ownership, or rights of any kind,
+            and carries <strong>no expectation of profit</strong>. There is no formal team, roadmap, or
+            guaranteed utility. The value of this token may go to zero at any time.
+          </p>
+          <p className="disclaimer-text">
+            <strong>NOT FINANCIAL ADVICE:</strong> Nothing on this website constitutes financial advice,
+            investment advice, trading advice, or any other sort of advice. You should conduct your own
+            research and consult with independent financial advisors before making any financial decisions.
+            Trading cryptocurrencies involves substantial risk of loss and is not suitable for every investor.
+          </p>
+          <p className="disclaimer-text">
+            <strong>NO WARRANTY:</strong> This software and protocol are provided "as is" without warranty
+            of any kind. Use at your own risk. The creators and contributors shall not be held liable for
+            any losses, damages, or claims arising from the use of this token or protocol. By interacting
+            with this site, you acknowledge that you are solely responsible for your own actions and any
+            consequences thereof.
+          </p>
+          <p className="disclaimer-text" style={{ marginBottom: 0 }}>
+            By using this website and interacting with the $ALIEN token, you agree that you have read
+            and understood these disclaimers and that you are not located in a jurisdiction where
+            cryptocurrency trading is prohibited.
+          </p>
+        </div>
+
         <div className="footer-bottom">
           <span className="text-muted">
             Built on Solana. Powered by the Percolator protocol.
