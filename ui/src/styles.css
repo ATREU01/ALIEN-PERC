@@ -1807,6 +1807,15 @@ input:focus, select:focus {
   color: var(--green) !important;
 }
 
+.ca-coming-soon {
+  animation: glow-breathe 3s ease-in-out infinite;
+  cursor: default;
+}
+
+.ca-coming-soon:hover {
+  transform: none;
+}
+
 .ca-label {
   font-family: var(--font-display);
   font-size: 10px;

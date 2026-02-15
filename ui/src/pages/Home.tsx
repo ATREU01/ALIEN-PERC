@@ -48,6 +48,50 @@ export function Home({ onNavigate }: HomeProps) {
           </button>
         </div>
 
+        {/* Contract Address */}
+        <div className="ca-section" style={{ padding: "32px 0" }}>
+          <p className="ca-label">Contract Address (CA)</p>
+          {CONTRACT_ADDRESS ? (
+            <>
+              <div className="ca-box" onClick={copyCA} title="Click to copy">
+                <span className="ca-address">{CONTRACT_ADDRESS}</span>
+                <button className={`ca-copy-btn ${copied ? "ca-copied" : ""}`}>
+                  {copied ? "COPIED" : "COPY"}
+                </button>
+              </div>
+              <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: "12px" }}>
+                Click to copy. Verify on{" "}
+                <a
+                  href={`https://solscan.io/token/${CONTRACT_ADDRESS}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan"
+                >
+                  Solscan
+                </a>{" "}
+                or{" "}
+                <a
+                  href={`https://pump.fun/coin/${CONTRACT_ADDRESS}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan"
+                >
+                  pump.fun
+                </a>
+              </p>
+            </>
+          ) : (
+            <div className="ca-box ca-coming-soon">
+              <span className="ca-address" style={{ color: "var(--text-muted)" }}>
+                CA DROPPING SOON ON PUMP.FUN
+              </span>
+              <span className="ca-copy-btn" style={{ opacity: 0.4, cursor: "default" }}>
+                SOON
+              </span>
+            </div>
+          )}
+        </div>
+
         <div className="hero-stats">
           <div className="hero-stat">
             <span className="hero-stat-value text-alien">
@@ -168,39 +212,6 @@ export function Home({ onNavigate }: HomeProps) {
           </div>
         </div>
       </section>
-
-      {/* Contract Address */}
-      {CONTRACT_ADDRESS && (
-        <section className="ca-section">
-          <p className="ca-label">Contract Address (CA)</p>
-          <div className="ca-box" onClick={copyCA} title="Click to copy">
-            <span className="ca-address">{CONTRACT_ADDRESS}</span>
-            <button className={`ca-copy-btn ${copied ? "ca-copied" : ""}`}>
-              {copied ? "COPIED" : "COPY"}
-            </button>
-          </div>
-          <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: "12px" }}>
-            Click to copy. Verify on{" "}
-            <a
-              href={`https://solscan.io/token/${CONTRACT_ADDRESS}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-cyan"
-            >
-              Solscan
-            </a>{" "}
-            or{" "}
-            <a
-              href={`https://pump.fun/coin/${CONTRACT_ADDRESS}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-cyan"
-            >
-              pump.fun
-            </a>
-          </p>
-        </section>
-      )}
 
       {/* CTA */}
       <section className="cta-section">
