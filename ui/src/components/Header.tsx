@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { ROUTES } from "../lib/constants";
 
@@ -16,12 +16,19 @@ const NAV_ITEMS = [
 ];
 
 export function Header({ currentRoute, onNavigate }: HeaderProps) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleNav = (route: string) => {
+    onNavigate(route);
+    setMobileMenuOpen(false);
+  };
+
   return (
     <header className="header">
       <div className="header-inner">
         <div
           className="header-logo"
-          onClick={() => onNavigate(ROUTES.HOME)}
+          onClick={() => handleNav(ROUTES.HOME)}
         >
           <img
             src="/alien-hacker.jpg"
@@ -47,8 +54,35 @@ export function Header({ currentRoute, onNavigate }: HeaderProps) {
 
         <div className="header-actions">
           <WalletMultiButton />
+          {/* Mobile hamburger */}
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Menu"
+          >
+            <span className={`hamburger ${mobileMenuOpen ? "open" : ""}`}>
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* Mobile dropdown menu */}
+      {mobileMenuOpen && (
+        <div className="mobile-menu">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.route}
+              className={`mobile-nav-item ${currentRoute === item.route ? "active" : ""}`}
+              onClick={() => handleNav(item.route)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </header>
   );
 }

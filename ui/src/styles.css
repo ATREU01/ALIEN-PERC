@@ -427,6 +427,99 @@ input:focus, select:focus {
   background: linear-gradient(135deg, var(--alien-green), var(--cyan)) !important;
 }
 
+/* Mobile hamburger menu */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  z-index: 200;
+}
+
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 24px;
+}
+
+.hamburger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--alien-green);
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
+.mobile-menu {
+  position: absolute;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  background: rgba(4, 4, 18, 0.97);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 99;
+  animation: slide-down 0.2s ease-out;
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mobile-nav-item {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mobile-nav-item:hover,
+.mobile-nav-item.active {
+  color: var(--alien-green);
+  background: rgba(57, 255, 20, 0.08);
+}
+
+/* Wallet adapter modal fixes for mobile */
+.wallet-adapter-modal-wrapper {
+  max-height: 80vh !important;
+  overflow-y: auto !important;
+}
+
+.wallet-adapter-modal {
+  z-index: 1000 !important;
+}
+
 /* ============================================================================
    GRADIENT TEXT
    ============================================================================ */
@@ -2078,6 +2171,17 @@ input:focus, select:focus {
   .header-nav {
     display: none;
   }
+  .mobile-menu-btn {
+    display: block;
+  }
+  .logo-text {
+    font-size: 16px;
+  }
+  .header-actions .wallet-adapter-button {
+    font-size: 10px !important;
+    padding: 8px 14px !important;
+    letter-spacing: 0.5px !important;
+  }
   .footer-grid {
     grid-template-columns: 1fr;
     gap: 24px;
@@ -2093,6 +2197,18 @@ input:focus, select:focus {
     width: 2px;
     height: 24px;
     margin: 0;
+  }
+  .ca-box {
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+  }
+  .ca-address {
+    font-size: 11px;
+    text-align: center;
+  }
+  .disclaimer-section {
+    padding: 16px;
   }
 }
 
@@ -2116,5 +2232,9 @@ input:focus, select:focus {
   }
   .page-title {
     font-size: 24px;
+  }
+  .header-actions .wallet-adapter-button {
+    font-size: 9px !important;
+    padding: 8px 10px !important;
   }
 }
