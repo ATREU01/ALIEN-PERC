@@ -15,13 +15,16 @@ export function Home({ onNavigate }: HomeProps) {
     <div className="page">
       {/* Hero */}
       <section className="hero">
+        <div className="hero-banner" />
+        <img
+          src="/alienator-logo.png"
+          alt="Alienator"
+          className="hero-logo"
+        />
         <div className="hero-badge">
           <span className="pulse-dot" />
           <span>Sovereign Perpetuals Protocol</span>
         </div>
-        <h1>
-          <span className="gradient-text">Alienator</span>
-        </h1>
         <p>
           Sovereign perpetual futures on Solana. Admin keys burned.
           Insurance fund compounds forever. No governance. No rugs. Just math.

@@ -326,31 +326,16 @@ input:focus, select:focus {
   transform: scale(1.02);
 }
 
-.header-logo:hover .logo-icon {
-  filter: drop-shadow(0 0 12px var(--alien-green));
-}
-
-.logo-icon {
-  width: 40px;
-  height: 40px;
+.logo-img {
+  height: 48px;
+  width: auto;
   transition: all 0.3s;
-  animation: float 4s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(57, 255, 20, 0.3));
 }
 
-.logo-text {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  color: var(--text-primary);
-  text-transform: uppercase;
-}
-
-.logo-accent {
-  background: linear-gradient(135deg, var(--alien-green), var(--cyan));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+.header-logo:hover .logo-img {
+  filter: drop-shadow(0 0 16px rgba(57, 255, 20, 0.5));
+  transform: scale(1.05);
 }
 
 .header-nav {
@@ -635,6 +620,28 @@ input:focus, select:focus {
   letter-spacing: 3px;
   margin-bottom: 32px;
   animation: border-pulse 3s ease-in-out infinite;
+}
+
+.hero-banner {
+  position: absolute;
+  inset: 0;
+  background: url("/alienator-banner.png") center center / cover no-repeat;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: -1;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 80%);
+}
+
+.hero-logo {
+  width: 320px;
+  max-width: 80vw;
+  height: auto;
+  margin-bottom: 24px;
+  filter: drop-shadow(0 0 40px rgba(57, 255, 20, 0.4)) drop-shadow(0 0 80px rgba(57, 255, 20, 0.15));
+  animation: float 5s ease-in-out infinite;
+  position: relative;
+  z-index: 1;
 }
 
 .hero-badge .pulse-dot {
