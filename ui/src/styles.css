@@ -285,12 +285,10 @@ input:focus, select:focus {
   position: sticky;
   top: 0;
   z-index: 100;
-  height: var(--header-height);
+  min-height: var(--header-height);
   background: rgba(4, 4, 18, 0.8);
   backdrop-filter: blur(24px) saturate(180%);
   border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
 }
 
 .header::after {
@@ -312,6 +310,7 @@ input:focus, select:focus {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 0 24px;
+  min-height: var(--header-height);
 }
 
 .header-logo {
@@ -399,7 +398,8 @@ input:focus, select:focus {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* Wallet button overrides */
@@ -2168,19 +2168,33 @@ input:focus, select:focus {
   .markets-grid, .vault-grid {
     grid-template-columns: 1fr;
   }
+  .header-inner {
+    padding: 0 12px;
+  }
   .header-nav {
     display: none;
   }
   .mobile-menu-btn {
     display: block;
   }
+  .header-logo {
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .logo-img {
+    height: 36px;
+    width: 36px;
+  }
   .logo-text {
-    font-size: 16px;
+    font-size: 15px;
+    letter-spacing: 1px;
   }
   .header-actions .wallet-adapter-button {
     font-size: 10px !important;
-    padding: 8px 14px !important;
+    padding: 8px 12px !important;
     letter-spacing: 0.5px !important;
+    white-space: nowrap !important;
   }
   .footer-grid {
     grid-template-columns: 1fr;
@@ -2225,7 +2239,13 @@ input:focus, select:focus {
     width: 100%;
   }
   .container {
-    padding: 0 16px;
+    padding: 0 12px;
+  }
+  .header-inner {
+    padding: 0 8px;
+  }
+  .logo-text {
+    display: none;
   }
   .hero {
     padding: 60px 0 40px;
@@ -2234,7 +2254,7 @@ input:focus, select:focus {
     font-size: 24px;
   }
   .header-actions .wallet-adapter-button {
-    font-size: 9px !important;
-    padding: 8px 10px !important;
+    font-size: 10px !important;
+    padding: 8px 12px !important;
   }
 }
