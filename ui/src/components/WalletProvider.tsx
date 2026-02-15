@@ -24,8 +24,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const connectionConfig = useMemo(
+    () => ({
+      commitment: "confirmed" as const,
+      disableRetryOnRateLimit: true,
+    }),
+    []
+  );
+
   return (
-    <ConnectionProvider endpoint={RPC_ENDPOINT}>
+    <ConnectionProvider endpoint={RPC_ENDPOINT} config={connectionConfig}>
       <SolanaWalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>{children}</WalletModalProvider>
       </SolanaWalletProvider>
