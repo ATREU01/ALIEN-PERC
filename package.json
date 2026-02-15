@@ -10,8 +10,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "pnpm build && node dist/index.js",
+    "build": "cd ui && npm install && npm run build",
+    "start": "cd ui && npx vite preview --host 0.0.0.0 --port ${PORT:-3000}",
+    "build:cli": "tsup",
+    "dev": "pnpm build:cli && node dist/index.js",
+    "dev:ui": "cd ui && npm run dev",
     "test": "tsx test/abi.test.ts && tsx test/pda.test.ts && tsx test/slab.test.ts && tsx test/validation.test.ts"
   },
   "dependencies": {
