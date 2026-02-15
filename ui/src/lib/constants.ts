@@ -19,11 +19,14 @@ export const RPC_ENDPOINT =
 export const CONTRACT_ADDRESS: string =
   import.meta.env.VITE_CONTRACT_ADDRESS || "";
 
-// Slab rent cost in SOL (approximate ~992KB account)
-export const SLAB_RENT_SOL = 7;
-export const COLLATERAL_SOL = 3;
-export const BURN_FEE_SOL = 2;
-export const TOTAL_LISTING_COST_SOL = SLAB_RENT_SOL + COLLATERAL_SOL + BURN_FEE_SOL;
+// On-chain slab account size (ENGINE_OFF + ENGINE_LEN for 4096 accounts)
+export const SLAB_DATA_SIZE = 992_560;
+
+// Minimum LP collateral deposit (SOL)
+export const MIN_COLLATERAL_SOL = 3;
+
+// Estimated Solana transaction fees for deploy (~5 instructions)
+export const TX_FEE_SOL = 0.01;
 
 // Precision
 export const PRICE_PRECISION = 1_000_000; // 1e6 for mark price

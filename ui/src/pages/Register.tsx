@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { SLAB_RENT_SOL, COLLATERAL_SOL, BURN_FEE_SOL, TOTAL_LISTING_COST_SOL } from "../lib/constants";
+import React, { useState, useEffect } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { SLAB_DATA_SIZE, MIN_COLLATERAL_SOL, TX_FEE_SOL } from "../lib/constants";
 
 type RegisterStep = 1 | 2 | 3;
 
 export function Register() {
   const { connected } = useWallet();
+  const { connection } = useConnection();
   const [step, setStep] = useState<RegisterStep>(1);
   const [tokenMint, setTokenMint] = useState("");
   const [inverted, setInverted] = useState(true);
@@ -15,6 +17,19 @@ export function Register() {
   const [initialMarginBps, setInitialMarginBps] = useState(2000); // 20%
   const [maintenanceMarginBps, setMaintenanceMarginBps] = useState(1000); // 10%
   const [tradingFeeBps, setTradingFeeBps] = useState(30); // 0.30%
+
+  // Fetch real slab rent from chain
+  const [slabRentSol, setSlabRentSol] = useState<number | null>(null);
+  useEffect(() => {
+    connection
+      .getMinimumBalanceForRentExemption(SLAB_DATA_SIZE)
+      .then((lamports) => setSlabRentSol(lamports / LAMPORTS_PER_SOL))
+      .catch(() => setSlabRentSol(6.91)); // fallback estimate
+  }, [connection]);
+
+  const totalCost = slabRentSol !== null
+    ? slabRentSol + MIN_COLLATERAL_SOL + TX_FEE_SOL
+    : null;
 
   const canProceed = step === 1 ? tokenMint.length >= 32 : true;
 
@@ -206,19 +221,31 @@ export function Register() {
               {/* Costs */}
               <div className="register-costs">
                 <h4 className="text-muted" style={{ marginBottom: "0.75rem", fontSize: "0.85rem" }}>
-                  ESTIMATED COSTS
+                  DEPLOYMENT COSTS
                 </h4>
                 <div className="flex-between" style={{ marginBottom: "0.5rem" }}>
-                  <span>Slab Rent (~992KB)</span>
-                  <span className="text-cyan">{SLAB_RENT_SOL} SOL</span>
+                  <span>
+                    Slab Account Rent
+                    <span className="text-muted" style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }}>
+                      (~992KB, refundable on close)
+                    </span>
+                  </span>
+                  <span className="text-cyan">
+                    {slabRentSol !== null ? slabRentSol.toFixed(2) : "..."} SOL
+                  </span>
                 </div>
                 <div className="flex-between" style={{ marginBottom: "0.5rem" }}>
-                  <span>Initial Collateral</span>
-                  <span className="text-cyan">{COLLATERAL_SOL} SOL</span>
+                  <span>
+                    Initial LP Deposit
+                    <span className="text-muted" style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }}>
+                      (min. {MIN_COLLATERAL_SOL} SOL, withdrawable)
+                    </span>
+                  </span>
+                  <span className="text-cyan">{MIN_COLLATERAL_SOL} SOL</span>
                 </div>
                 <div className="flex-between" style={{ marginBottom: "0.5rem" }}>
-                  <span>Network Fees</span>
-                  <span className="text-cyan">~{BURN_FEE_SOL} SOL</span>
+                  <span>Transaction Fees</span>
+                  <span className="text-cyan">~{TX_FEE_SOL} SOL</span>
                 </div>
                 <div
                   className="flex-between"
@@ -230,7 +257,9 @@ export function Register() {
                   }}
                 >
                   <span>Total</span>
-                  <span className="text-cyan">~{TOTAL_LISTING_COST_SOL} SOL</span>
+                  <span className="text-cyan">
+                    ~{totalCost !== null ? totalCost.toFixed(2) : "..."} SOL
+                  </span>
                 </div>
               </div>
             </>
