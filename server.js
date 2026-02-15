@@ -20,6 +20,14 @@ const MIME = {
 };
 
 createServer(async (req, res) => {
+  // Redirect www to non-www
+  const host = req.headers.host || "";
+  if (host.startsWith("www.")) {
+    const location = `https://alienator.org${req.url}`;
+    res.writeHead(301, { Location: location });
+    return res.end();
+  }
+
   let path = req.url.split("?")[0];
   if (path === "/") path = "/index.html";
 
