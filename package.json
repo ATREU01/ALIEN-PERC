@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "cd ui && npm install && npm run build",
-    "start": "cd ui && npx vite preview --host 0.0.0.0 --port ${PORT:-3000}",
+    "start": "node server.js",
     "build:cli": "tsup",
     "dev": "pnpm build:cli && node dist/index.js",
     "dev:ui": "cd ui && npm run dev",
