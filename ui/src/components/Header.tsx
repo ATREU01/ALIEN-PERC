@@ -24,7 +24,7 @@ export function Header({ currentRoute, onNavigate }: HeaderProps) {
           onClick={() => onNavigate(ROUTES.HOME)}
         >
           <img
-            src="/alienator-logo.png"
+            src="/alien-hacker.jpg"
             alt="Alienator"
             className="logo-img"
           />

@@ -27,7 +27,7 @@ export function Home({ onNavigate }: HomeProps) {
       <section className="hero">
         <div className="hero-banner" />
         <img
-          src="/alienator-logo.png"
+          src="/alien-hacker.jpg"
           alt="Alienator"
           className="hero-logo"
         />
