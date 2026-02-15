@@ -73,7 +73,7 @@ export function Footer() {
             <h4 className="footer-title">Community</h4>
             <div className="footer-social">
               <a
-                href="https://x.com/AlienatorSolana"
+                href="https://x.com/AlienatorMarket"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="social-link"
