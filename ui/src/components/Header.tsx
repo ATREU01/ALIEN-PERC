@@ -28,6 +28,9 @@ export function Header({ currentRoute, onNavigate }: HeaderProps) {
             alt="Alienator"
             className="logo-img"
           />
+          <span className="logo-text">
+            ALIEN<span className="logo-accent">ATOR</span>
+          </span>
         </div>
 
         <nav className="header-nav">
