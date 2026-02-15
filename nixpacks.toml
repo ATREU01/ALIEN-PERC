@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "npm"]
+
+[phases.install]
+cmds = ["npm install --prefix ui"]
+
+[phases.build]
+cmds = ["npm run build --prefix ui"]
+
+[start]
+cmd = "node server.js"
