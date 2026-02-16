@@ -57,14 +57,13 @@ export interface KnownMarket {
 }
 
 // Known deployed markets — used as fallback when getProgramAccounts is unavailable
-// After running deploy-alien-devnet.ts, update the slabAddress and collateralMint below
-// with the values from devnet-market.json
+// Deployed via deploy-alien-devnet.ts on 2026-02-16
 export const KNOWN_MARKETS: KnownMarket[] = [
   {
     name: "Alienator / USD",
     symbol: "ALIENATOR",
-    slabAddress: "DEPLOY_PENDING",  // Replace with slab from devnet-market.json
-    collateralMint: "DEPLOY_PENDING",  // Replace with mint from devnet-market.json
+    slabAddress: "EU6MFz2b85UgZvnAmoRnXRGziJMFzrHVoh1qKRftwvcA",
+    collateralMint: "B2ycZW2g5RzWv5BYPBdeAfuZe9tt7AD8uNGAozyzUpzU",
     inverted: true,
   },
 ];
