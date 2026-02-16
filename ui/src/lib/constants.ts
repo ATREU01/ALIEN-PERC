@@ -1,5 +1,5 @@
 /**
- * ALIEN Percolator Constants
+ * Alienator Percolator Constants
  */
 import { PublicKey } from "@solana/web3.js";
 
@@ -57,12 +57,14 @@ export interface KnownMarket {
 }
 
 // Known deployed markets — used as fallback when getProgramAccounts is unavailable
+// After running deploy-alien-devnet.ts, update the slabAddress and collateralMint below
+// with the values from devnet-market.json
 export const KNOWN_MARKETS: KnownMarket[] = [
   {
-    name: "ALIEN / USD",
-    symbol: "ALIEN",
-    slabAddress: "A7wQtRT9DhFqYho8wTVqQCDc7kYPTUXGPATiyVbZKVFs",
-    collateralMint: "So11111111111111111111111111111111111111112",
+    name: "Alienator / USD",
+    symbol: "ALIENATOR",
+    slabAddress: "DEPLOY_PENDING",  // Replace with slab from devnet-market.json
+    collateralMint: "DEPLOY_PENDING",  // Replace with mint from devnet-market.json
     inverted: true,
   },
 ];
