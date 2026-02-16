@@ -7,6 +7,7 @@ import {
   formatBps,
   truncateAddress,
 } from "../lib/format";
+import { getMarketName } from "../lib/constants";
 
 export function Earn() {
   const { connected } = useWallet();
@@ -54,8 +55,8 @@ export function Earn() {
               <div className="vault-header">
                 <div>
                   <h3 className="vault-name">
-                    {truncateAddress(m.state.collateralMint, 6)}
-                    {m.state.inverted && (
+                    {getMarketName(m.state.collateralMint)?.name || truncateAddress(m.state.collateralMint, 6)}
+                    {!getMarketName(m.state.collateralMint) && m.state.inverted && (
                       <span className="text-muted" style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }}>
                         INVERTED
                       </span>

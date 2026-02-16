@@ -8,6 +8,7 @@ import {
   truncateAddress,
   formatBigintE6,
 } from "../lib/format";
+import { getMarketName } from "../lib/constants";
 
 type OrderSide = "long" | "short";
 type OrderTab = "market" | "limit";
@@ -66,8 +67,8 @@ export function Trade() {
           >
             <div className="market-card-header">
               <span className="market-card-name">
-                {truncateAddress(m.state.collateralMint)}
-                {m.state.inverted && " (INV)"}
+                {getMarketName(m.state.collateralMint)?.name || truncateAddress(m.state.collateralMint)}
+                {!getMarketName(m.state.collateralMint) && m.state.inverted && " (INV)"}
               </span>
               {m.state.adminBurned ? (
                 <span className="badge-burned">BURNED</span>

@@ -66,6 +66,9 @@ export function Footer() {
                   Solscan
                 </a>
               </li>
+              <li>
+                <a href="#terms">Terms &amp; Conditions</a>
+              </li>
             </ul>
           </div>
 

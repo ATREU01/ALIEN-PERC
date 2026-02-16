@@ -33,11 +33,12 @@ export function Home({ onNavigate }: HomeProps) {
         />
         <div className="hero-badge">
           <span className="pulse-dot" />
-          <span>Sovereign Perpetuals Protocol</span>
+          <span>AI-Powered Sovereign Perpetuals</span>
         </div>
         <p>
-          Sovereign perpetual futures on Solana. Admin keys burned.
-          Insurance fund compounds forever. No governance. No rugs. Just math.
+          The first AI-integrated percolator protocol on Solana. Sovereign perpetual futures
+          with alien intelligence built in. Admin keys burned. Insurance fund compounds forever.
+          Currently live on devnet — mainnet coming soon.
         </p>
         <div className="hero-actions">
           <button className="btn-primary btn-lg" onClick={() => onNavigate("trade")}>
@@ -188,6 +189,9 @@ export function Home({ onNavigate }: HomeProps) {
       {/* Ecosystem */}
       <section className="section">
         <h2 className="section-title">The Alienator Ecosystem</h2>
+        <p className="section-subtitle text-muted">
+          First-of-its-kind: AI intelligence fused into Toly's percolator engine. Alien tek.
+        </p>
         <div className="features-grid">
           <div className="ecosystem-card eco-green">
             <h3 className="ecosystem-title text-alien">Percolator Core</h3>
@@ -208,6 +212,13 @@ export function Home({ onNavigate }: HomeProps) {
             <p className="ecosystem-desc">
               Pre-burn governance via Squads multisig. After burn, the market is
               fully autonomous &mdash; no governance needed.
+            </p>
+          </div>
+          <div className="ecosystem-card eco-alien">
+            <h3 className="ecosystem-title text-alien">Alien Intelligence</h3>
+            <p className="ecosystem-desc">
+              AI wired directly into the protocol. Reads live on-chain data, analyzes market state,
+              and helps you navigate the system. The first AI-powered percolator.
             </p>
           </div>
         </div>

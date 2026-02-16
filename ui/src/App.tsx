@@ -2,11 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import { WalletProvider } from "./components/WalletProvider";
 import { Header } from "./components/Header";
 import { Footer } from "./components/Footer";
+import { AlienChat } from "./components/AlienChat";
 import { Home } from "./pages/Home";
 import { Trade } from "./pages/Trade";
 import { Earn } from "./pages/Earn";
 import { Register } from "./pages/Register";
 import { Indexer } from "./pages/Indexer";
+import { Guide } from "./pages/Guide";
+import { Terms } from "./pages/Terms";
 import { ROUTES } from "./lib/constants";
 import "./styles.css";
 
@@ -40,6 +43,10 @@ function AppContent() {
         return <Register />;
       case ROUTES.INDEXER:
         return <Indexer />;
+      case ROUTES.GUIDE:
+        return <Guide onNavigate={navigate} />;
+      case ROUTES.TERMS:
+        return <Terms />;
       default:
         return <Home onNavigate={navigate} />;
     }
@@ -52,6 +59,7 @@ function AppContent() {
         <div className="container">{renderPage()}</div>
       </main>
       <Footer />
+      <AlienChat onNavigate={navigate} />
     </div>
   );
 }
