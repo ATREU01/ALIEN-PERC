@@ -9,6 +9,8 @@ interface Message {
 
 interface AlienChatProps {
   onNavigate?: (route: string) => void;
+  externalOpen?: boolean;
+  onExternalOpenHandled?: () => void;
 }
 
 // Extract [NAV:xxx] tags from AI response and return clean text + nav targets
@@ -72,7 +74,7 @@ function AlienHeaderLogo() {
   );
 }
 
-export function AlienChat({ onNavigate }: AlienChatProps) {
+export function AlienChat({ onNavigate, externalOpen, onExternalOpenHandled }: AlienChatProps) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -82,6 +84,14 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { markets } = useMarketDiscovery();
+
+  // Allow parent to open the chat (e.g. from header button)
+  useEffect(() => {
+    if (externalOpen && !open) {
+      setOpen(true);
+      onExternalOpenHandled?.();
+    }
+  }, [externalOpen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
