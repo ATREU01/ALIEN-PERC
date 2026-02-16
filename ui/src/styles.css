@@ -2630,6 +2630,171 @@ input:focus, select:focus {
 }
 
 /* ============================================================================
+   HERO HEADLINE
+   ============================================================================ */
+
+.hero-headline {
+  font-size: clamp(32px, 5vw, 56px);
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+  line-height: 1.15;
+  margin-bottom: 20px;
+}
+
+.hero-sub {
+  color: var(--text-muted);
+  max-width: 600px;
+  margin: 0 auto 28px;
+  line-height: 1.75;
+  font-size: 1rem;
+}
+
+.hero-sub em {
+  color: var(--alien);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   STACK GRID (Home)
+   ============================================================================ */
+
+.stack-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.stack-item {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 28px;
+  background: rgba(255, 255, 255, 0.015);
+  transition: background 0.2s;
+}
+
+.stack-item:hover {
+  background: rgba(57, 255, 20, 0.025);
+}
+
+.stack-layer {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid rgba(57, 255, 20, 0.2);
+  background: rgba(57, 255, 20, 0.05);
+  color: var(--alien);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+}
+
+.stack-layer-cyan {
+  border-color: rgba(0, 240, 255, 0.2);
+  background: rgba(0, 240, 255, 0.05);
+  color: var(--cyan);
+}
+
+.stack-layer-purple {
+  border-color: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.05);
+  color: #a855f7;
+}
+
+.stack-info h4 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.stack-info p {
+  color: var(--text-muted);
+  font-size: 0.83rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ============================================================================
+   LIVE MARKET CARD (Home)
+   ============================================================================ */
+
+.live-market-card {
+  background: rgba(57, 255, 20, 0.02);
+  border: 1px solid rgba(57, 255, 20, 0.1);
+  border-radius: 14px;
+  padding: 28px 32px;
+  cursor: pointer;
+  transition: all 0.25s;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.live-market-card:hover {
+  border-color: rgba(57, 255, 20, 0.25);
+  background: rgba(57, 255, 20, 0.04);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(57, 255, 20, 0.06);
+}
+
+.live-market-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.live-market-header h3 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+
+.live-market-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-market-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 20px;
+}
+
+.live-market-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.live-market-stats > div > span:first-child {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.live-market-stats > div > span:last-child {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.live-market-cta {
+  margin-top: 20px;
+  font-size: 0.8rem;
+  text-align: right;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================================
    RESPONSIVE
    ============================================================================ */
 
@@ -2733,6 +2898,21 @@ input:focus, select:focus {
   }
   .guide-steps {
     grid-template-columns: 1fr;
+  }
+  .stack-item {
+    padding: 16px 20px;
+    gap: 14px;
+  }
+  .stack-layer {
+    width: 36px;
+    height: 36px;
+    font-size: 0.7rem;
+  }
+  .live-market-card {
+    padding: 20px;
+  }
+  .live-market-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
