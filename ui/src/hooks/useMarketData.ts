@@ -1,12 +1,12 @@
 /**
  * Hook for fetching and subscribing to percolator market data.
  *
- * Fixes applied:
- * - Shared discovery cache (one getProgramAccounts call, not per-component)
- * - Exponential backoff on 429 / network errors
- * - Polling instead of WebSocket (free RPC tiers don't support WS well)
- * - Uses wallet adapter connection (no duplicate connections)
- * - Graceful degradation when getProgramAccounts is blocked
+ * Discovery strategy (two-pronged):
+ * 1. Try getProgramAccounts to discover ALL markets on-chain
+ * 2. If that fails (RPC limitation) or returns nothing, fall back to
+ *    loading KNOWN_MARKETS individually via getAccountInfo (works on every RPC)
+ *
+ * This guarantees markets always show up regardless of RPC tier.
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Connection, PublicKey } from "@solana/web3.js";
@@ -16,7 +16,12 @@ import {
   type MarketState,
   type AccountData,
 } from "../lib/percolator";
-import { RPC_ENDPOINT, PERCOLATOR_PROGRAM_ID, MAX_ACCOUNTS } from "../lib/constants";
+import {
+  RPC_ENDPOINT,
+  PERCOLATOR_PROGRAM_ID,
+  MAX_ACCOUNTS,
+  KNOWN_MARKETS,
+} from "../lib/constants";
 
 // ---------------------------------------------------------------------------
 // Shared connection — single instance, no duplicates
@@ -88,6 +93,45 @@ function notifyListeners() {
   discoveryCache.listeners.forEach((fn) => fn());
 }
 
+// ---------------------------------------------------------------------------
+// Fallback: load known markets individually via getAccountInfo
+// Works on every RPC tier (no getProgramAccounts needed)
+// ---------------------------------------------------------------------------
+async function loadKnownMarkets(): Promise<
+  Array<{ address: string; state: MarketState }>
+> {
+  if (KNOWN_MARKETS.length === 0) return [];
+
+  const conn = getConnection();
+  const results: Array<{ address: string; state: MarketState }> = [];
+
+  // Fetch all known markets in parallel
+  const fetches = KNOWN_MARKETS.map(async (market) => {
+    try {
+      const info = await fetchWithBackoff(() =>
+        conn.getAccountInfo(new PublicKey(market.slabAddress)),
+      );
+      if (!info) return null;
+      const data = Buffer.from(info.data);
+      return {
+        address: market.slabAddress,
+        state: parseMarketState(data),
+      };
+    } catch {
+      return null;
+    }
+  });
+
+  const settled = await Promise.all(fetches);
+  for (const r of settled) {
+    if (r) results.push(r);
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Main discovery: try getProgramAccounts, then fall back to known markets
+// ---------------------------------------------------------------------------
 async function runDiscovery(): Promise<void> {
   // Already in-flight — piggyback on existing request
   if (discoveryCache.promise) return discoveryCache.promise;
@@ -99,38 +143,76 @@ async function runDiscovery(): Promise<void> {
   discoveryCache.promise = (async () => {
     try {
       const conn = getConnection();
-      const accounts = await fetchWithBackoff(() =>
-        conn.getProgramAccounts(PERCOLATOR_PROGRAM_ID, {
-          filters: [
-            {
-              memcmp: {
-                offset: 0,
-                bytes: "6Aptvk7gABj", // Base58 of PERCOLAT magic u64 LE
-              },
-            },
-          ],
-          dataSlice: { offset: 0, length: 9200 }, // Header+Config+Engine only — skip 4096 accounts
-        }),
-      );
+      let parsed: Array<{ address: string; state: MarketState }> = [];
 
-      const parsed = accounts
-        .map((a) => {
-          try {
-            const data = Buffer.from(a.account.data);
-            return {
-              address: a.pubkey.toBase58(),
-              state: parseMarketState(data),
-            };
-          } catch {
-            return null;
+      // Strategy 1: Try full on-chain scan via getProgramAccounts
+      try {
+        const accounts = await fetchWithBackoff(() =>
+          conn.getProgramAccounts(PERCOLATOR_PROGRAM_ID, {
+            filters: [
+              {
+                memcmp: {
+                  offset: 0,
+                  bytes: "6Aptvk7gABj", // Base58 of PERCOLAT magic u64 LE
+                },
+              },
+            ],
+            dataSlice: { offset: 0, length: 9200 }, // Header+Config+Engine only
+          }),
+        );
+
+        parsed = accounts
+          .map((a) => {
+            try {
+              const data = Buffer.from(a.account.data);
+              return {
+                address: a.pubkey.toBase58(),
+                state: parseMarketState(data),
+              };
+            } catch {
+              return null;
+            }
+          })
+          .filter((m): m is NonNullable<typeof m> => m !== null);
+      } catch {
+        // getProgramAccounts failed — that's OK, we have fallback
+      }
+
+      // Strategy 2: If scan returned nothing, load known markets individually
+      if (parsed.length === 0) {
+        parsed = await loadKnownMarkets();
+      } else {
+        // Merge: add any known markets that weren't found in the scan
+        const foundAddresses = new Set(parsed.map((m) => m.address));
+        const missing = KNOWN_MARKETS.filter(
+          (km) => !foundAddresses.has(km.slabAddress),
+        );
+        if (missing.length > 0) {
+          const extras = await loadKnownMarkets();
+          for (const e of extras) {
+            if (!foundAddresses.has(e.address)) {
+              parsed.push(e);
+            }
           }
-        })
-        .filter((m): m is NonNullable<typeof m> => m !== null);
+        }
+      }
 
       discoveryCache.markets = parsed;
       discoveryCache.timestamp = Date.now();
-      discoveryCache.error = null;
+      discoveryCache.error = parsed.length === 0 ? "No markets found on-chain" : null;
     } catch (e: unknown) {
+      // Both strategies failed — try known markets as last resort
+      try {
+        const fallback = await loadKnownMarkets();
+        if (fallback.length > 0) {
+          discoveryCache.markets = fallback;
+          discoveryCache.timestamp = Date.now();
+          discoveryCache.error = null;
+          return;
+        }
+      } catch {
+        // Nothing worked
+      }
       discoveryCache.error =
         e instanceof Error ? e.message : "Failed to discover markets";
     } finally {

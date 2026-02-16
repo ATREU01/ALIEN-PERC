@@ -94,7 +94,7 @@ export function Indexer() {
         </div>
         {discoveryError && (
           <p className="text-muted" style={{ fontSize: "0.75rem", marginTop: "8px" }}>
-            Auto-discovery unavailable (public RPC limitation). Paste a market address above to explore it.
+            {discoveryError}. Paste a market address above to explore it.
           </p>
         )}
       </div>

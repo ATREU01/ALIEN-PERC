@@ -11,9 +11,10 @@ export const MATCHER_PROGRAM_ID = new PublicKey(
   "4HcGCsyjAqnFua5ccuXyt8KRRQzKFbGTJkVChpS7Yfzy"
 );
 
-// Network
+// Network — defaults to devnet where ALIEN market is deployed.
+// Set VITE_RPC_URL in .env to override (e.g. your Helius endpoint).
 export const RPC_ENDPOINT =
-  import.meta.env.VITE_RPC_URL || "https://api.mainnet-beta.solana.com";
+  import.meta.env.VITE_RPC_URL || "https://api.devnet.solana.com";
 
 // Contract Address (set via env var VITE_CONTRACT_ADDRESS after pump.fun launch)
 export const CONTRACT_ADDRESS: string =
@@ -55,14 +56,13 @@ export interface KnownMarket {
   icon?: string;
 }
 
-// Placeholder — real markets get discovered on-chain
+// Known deployed markets — used as fallback when getProgramAccounts is unavailable
 export const KNOWN_MARKETS: KnownMarket[] = [
-  // Will be populated once ALIEN market is deployed
-  // {
-  //   name: "ALIEN / USD",
-  //   symbol: "ALIEN",
-  //   slabAddress: "<TBD>",
-  //   collateralMint: "<ALIEN_MINT>",
-  //   inverted: true,
-  // },
+  {
+    name: "ALIEN / USD",
+    symbol: "ALIEN",
+    slabAddress: "A7wQtRT9DhFqYho8wTVqQCDc7kYPTUXGPATiyVbZKVFs",
+    collateralMint: "So11111111111111111111111111111111111111112",
+    inverted: true,
+  },
 ];

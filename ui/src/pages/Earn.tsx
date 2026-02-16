@@ -37,8 +37,8 @@ export function Earn() {
         {!discovering && markets.length === 0 && (
           <div className="glass-card" style={{ padding: "2rem", textAlign: "center" }}>
             <span className="text-muted">
-              No vaults auto-discovered (public RPC limitation).{" "}
-              Use the <a href="#indexer" className="text-cyan">Market Indexer</a> to explore by address.
+              No vaults found. Check your RPC connection or{" "}
+              <a href="#register" className="text-cyan">list a new token</a>.
             </span>
           </div>
         )}
