@@ -20,6 +20,7 @@ function getRouteFromHash(): string {
 
 function AppContent() {
   const [route, setRoute] = useState(getRouteFromHash);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const navigate = useCallback((newRoute: string) => {
     window.location.hash = newRoute;
@@ -54,12 +55,12 @@ function AppContent() {
 
   return (
     <div className="app">
-      <Header currentRoute={route} onNavigate={navigate} />
+      <Header currentRoute={route} onNavigate={navigate} onOpenChat={() => setChatOpen(true)} />
       <main className="main-content">
         <div className="container">{renderPage()}</div>
       </main>
       <Footer />
-      <AlienChat onNavigate={navigate} />
+      <AlienChat onNavigate={navigate} externalOpen={chatOpen} onExternalOpenHandled={() => setChatOpen(false)} />
     </div>
   );
 }

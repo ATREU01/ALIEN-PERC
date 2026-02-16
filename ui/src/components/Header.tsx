@@ -5,6 +5,7 @@ import { ROUTES } from "../lib/constants";
 interface HeaderProps {
   currentRoute: string;
   onNavigate: (route: string) => void;
+  onOpenChat?: () => void;
 }
 
 const NAV_ITEMS = [
@@ -16,7 +17,7 @@ const NAV_ITEMS = [
   { route: ROUTES.GUIDE, label: "Guide" },
 ];
 
-export function Header({ currentRoute, onNavigate }: HeaderProps) {
+export function Header({ currentRoute, onNavigate, onOpenChat }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNav = (route: string) => {
@@ -54,6 +55,15 @@ export function Header({ currentRoute, onNavigate }: HeaderProps) {
         </nav>
 
         <div className="header-actions">
+          <button className="header-ai-btn" onClick={onOpenChat}>
+            <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+              <ellipse cx="32" cy="30" rx="22" ry="26" stroke="#39ff14" strokeWidth="2.5" fill="rgba(57,255,20,0.08)" />
+              <ellipse cx="23" cy="26" rx="5" ry="7" fill="#39ff14" opacity="0.8" />
+              <ellipse cx="41" cy="26" rx="5" ry="7" fill="#39ff14" opacity="0.8" />
+            </svg>
+            <span>Ask AI</span>
+            <span className="header-ai-live" />
+          </button>
           <WalletMultiButton />
           {/* Mobile hamburger */}
           <button
@@ -82,6 +92,12 @@ export function Header({ currentRoute, onNavigate }: HeaderProps) {
               {item.label}
             </button>
           ))}
+          <button
+            className="mobile-nav-item mobile-nav-ai"
+            onClick={() => { setMobileMenuOpen(false); onOpenChat?.(); }}
+          >
+            Ask AI
+          </button>
         </div>
       )}
     </header>
