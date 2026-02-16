@@ -44,7 +44,15 @@ export const ROUTES = {
   EARN: "earn",
   REGISTER: "register",
   INDEXER: "indexer",
+  GUIDE: "guide",
+  TERMS: "terms",
 } as const;
+
+// Helper: get display name for a market by its collateral mint
+export function getMarketName(collateralMint: string): { name: string; symbol: string } | null {
+  const known = KNOWN_MARKETS.find((m) => m.collateralMint === collateralMint);
+  return known ? { name: known.name, symbol: known.symbol } : null;
+}
 
 // Known markets (will be populated from on-chain discovery)
 export interface KnownMarket {

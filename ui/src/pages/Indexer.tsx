@@ -6,6 +6,7 @@ import {
   formatBps,
   truncateAddress,
 } from "../lib/format";
+import { getMarketName } from "../lib/constants";
 
 type IndexerTab = "overview" | "accounts" | "insurance" | "config";
 
@@ -56,9 +57,9 @@ export function Indexer() {
             </option>
             {markets.map((m) => (
               <option key={m.address} value={m.address}>
-                {truncateAddress(m.address, 8)} — {m.state.numAccounts} accounts
+                {getMarketName(m.state.collateralMint)?.name || truncateAddress(m.address, 8)} — {m.state.numAccounts} accounts
                 {m.state.adminBurned ? " [BURNED]" : ""}
-                {m.state.inverted ? " (INV)" : ""}
+                {!getMarketName(m.state.collateralMint) && m.state.inverted ? " (INV)" : ""}
               </option>
             ))}
           </select>
@@ -364,7 +365,7 @@ export function Indexer() {
                     rel="noopener noreferrer"
                     className="text-cyan"
                   >
-                    {truncateAddress(state.collateralMint, 8)}
+                    {getMarketName(state.collateralMint)?.name || truncateAddress(state.collateralMint, 8)}
                   </a>
                 </span>
               </div>

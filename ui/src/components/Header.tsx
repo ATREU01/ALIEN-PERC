@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { route: ROUTES.EARN, label: "Earn" },
   { route: ROUTES.REGISTER, label: "Register" },
   { route: ROUTES.INDEXER, label: "Indexer" },
+  { route: ROUTES.GUIDE, label: "Guide" },
 ];
 
 export function Header({ currentRoute, onNavigate }: HeaderProps) {
