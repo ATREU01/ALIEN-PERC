@@ -47,10 +47,14 @@
   --border-bright: rgba(57, 255, 20, 0.18);
   --border-glow: rgba(57, 255, 20, 0.35);
 
+  /* Alias */
+  --alien: var(--alien-green);
+
   /* Fonts */
   --font-display: "Orbitron", "Inter", sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Sizing */
   --header-height: 72px;
@@ -2267,133 +2271,314 @@ input:focus, select:focus {
 }
 
 /* ============================================================================
-   ALIEN CHAT
+   ALIEN CHAT — Premium AI Interface
    ============================================================================ */
+
+/* --- Trigger Button --- */
 
 .alien-chat-trigger {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 28px;
+  right: 28px;
   z-index: 9000;
-  width: 56px;
-  height: 56px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
-  border: 1px solid rgba(57, 255, 20, 0.3);
-  background: rgba(10, 10, 10, 0.95);
+  border: 1.5px solid rgba(57, 255, 20, 0.25);
+  background: radial-gradient(ellipse at 50% 40%, rgba(57, 255, 20, 0.08) 0%, rgba(4, 4, 18, 0.97) 70%);
   cursor: pointer;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.15), 0 4px 20px rgba(0, 0, 0, 0.4);
-  transition: all 0.3s;
-  animation: chat-pulse 3s ease-in-out infinite;
+  gap: 0;
+  box-shadow:
+    0 0 24px rgba(57, 255, 20, 0.12),
+    0 0 60px rgba(57, 255, 20, 0.04),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: chat-trigger-glow 4s ease-in-out infinite;
 }
 
-@keyframes chat-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(57, 255, 20, 0.15), 0 4px 20px rgba(0, 0, 0, 0.4); }
-  50% { box-shadow: 0 0 30px rgba(57, 255, 20, 0.25), 0 4px 20px rgba(0, 0, 0, 0.4); }
+@keyframes chat-trigger-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 24px rgba(57, 255, 20, 0.12),
+      0 0 60px rgba(57, 255, 20, 0.04),
+      0 8px 32px rgba(0, 0, 0, 0.5);
+    border-color: rgba(57, 255, 20, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 32px rgba(57, 255, 20, 0.2),
+      0 0 80px rgba(57, 255, 20, 0.06),
+      0 8px 32px rgba(0, 0, 0, 0.5);
+    border-color: rgba(57, 255, 20, 0.4);
+  }
 }
 
 .alien-chat-trigger:hover {
-  border-color: var(--alien);
-  transform: scale(1.08);
-  box-shadow: 0 0 30px rgba(57, 255, 20, 0.3), 0 4px 20px rgba(0, 0, 0, 0.4);
+  border-color: rgba(57, 255, 20, 0.6);
+  transform: scale(1.1) translateY(-2px);
+  box-shadow:
+    0 0 40px rgba(57, 255, 20, 0.25),
+    0 0 80px rgba(57, 255, 20, 0.08),
+    0 12px 40px rgba(0, 0, 0, 0.6);
 }
+
+.alien-chat-trigger-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.alien-chat-trigger-label {
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: rgba(57, 255, 20, 0.6);
+  margin-top: -2px;
+  pointer-events: none;
+}
+
+/* --- Chat Window --- */
 
 .alien-chat-window {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 28px;
+  right: 28px;
   z-index: 9001;
-  width: 380px;
-  height: 500px;
+  width: 400px;
+  height: 560px;
   display: flex;
   flex-direction: column;
-  background: rgba(8, 8, 12, 0.97);
-  border: 1px solid rgba(57, 255, 20, 0.15);
-  border-radius: 14px;
-  box-shadow: 0 0 40px rgba(57, 255, 20, 0.08), 0 8px 32px rgba(0, 0, 0, 0.6);
+  background: rgba(4, 4, 14, 0.98);
+  border: 1px solid rgba(57, 255, 20, 0.12);
+  border-radius: 20px;
+  box-shadow:
+    0 0 60px rgba(57, 255, 20, 0.06),
+    0 0 120px rgba(57, 255, 20, 0.02),
+    0 24px 80px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(57, 255, 20, 0.06);
   overflow: hidden;
+  animation: chat-window-open 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(20px);
 }
+
+@keyframes chat-window-open {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* --- Header --- */
 
 .alien-chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(57, 255, 20, 0.1);
-  background: rgba(57, 255, 20, 0.03);
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(57, 255, 20, 0.08);
+  background: linear-gradient(180deg, rgba(57, 255, 20, 0.04) 0%, rgba(57, 255, 20, 0.01) 100%);
+}
+
+.alien-chat-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alien-chat-header-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(57, 255, 20, 0.06);
+  border: 1px solid rgba(57, 255, 20, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alien-chat-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .alien-chat-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-family: var(--font-display);
-  font-size: 0.8rem;
-  letter-spacing: 3px;
-  color: var(--alien);
-  text-shadow: 0 0 10px rgba(57, 255, 20, 0.3);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  color: var(--alien-green);
+  line-height: 1;
 }
 
-.beta-dot {
-  width: 7px;
-  height: 7px;
+.alien-chat-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.alien-chat-status-dot {
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--alien);
+  background: var(--alien-green);
+  box-shadow: 0 0 6px rgba(57, 255, 20, 0.4);
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .alien-chat-close {
   background: none;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
   color: var(--text-muted);
-  font-size: 22px;
   cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-  transition: color 0.2s;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
 }
 
 .alien-chat-close:hover {
   color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
 }
+
+/* --- Messages Area --- */
 
 .alien-chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  scroll-behavior: smooth;
 }
 
 .alien-chat-messages::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
+}
+
+.alien-chat-messages::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .alien-chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(57, 255, 20, 0.15);
-  border-radius: 2px;
+  background: rgba(57, 255, 20, 0.12);
+  border-radius: 3px;
 }
+
+.alien-chat-messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(57, 255, 20, 0.25);
+}
+
+/* --- Welcome Screen --- */
 
 .alien-chat-welcome {
   text-align: center;
-  padding: 32px 16px;
+  padding: 28px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.alien-chat-welcome p:first-child {
-  color: var(--alien);
-  font-family: var(--font-display);
-  letter-spacing: 1px;
-  font-size: 0.9rem;
-  margin-bottom: 8px;
+.alien-chat-welcome-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: radial-gradient(ellipse at 50% 40%, rgba(57, 255, 20, 0.1) 0%, rgba(57, 255, 20, 0.02) 70%);
+  border: 1px solid rgba(57, 255, 20, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
 }
+
+.alien-chat-welcome-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--alien-green);
+  margin: 0 0 8px 0;
+  text-shadow: 0 0 20px rgba(57, 255, 20, 0.15);
+}
+
+.alien-chat-welcome-desc {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
+  max-width: 300px;
+}
+
+.alien-chat-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.alien-chat-suggestion {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: var(--font-sans);
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: rgba(57, 255, 20, 0.03);
+  border: 1px solid rgba(57, 255, 20, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  letter-spacing: 0.2px;
+}
+
+.alien-chat-suggestion:hover {
+  background: rgba(57, 255, 20, 0.07);
+  border-color: rgba(57, 255, 20, 0.2);
+  color: var(--text-primary);
+  transform: translateX(2px);
+}
+
+/* --- Messages --- */
 
 .alien-chat-msg {
   display: flex;
-  gap: 8px;
-  max-width: 88%;
+  gap: 10px;
+  max-width: 90%;
+  animation: msg-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .alien-chat-msg-user {
@@ -2403,52 +2588,59 @@ input:focus, select:focus {
 
 .alien-chat-msg-text {
   padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  line-height: 1.55;
+  border-radius: 14px;
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: 400;
+  line-height: 1.6;
   word-break: break-word;
   white-space: pre-wrap;
+  letter-spacing: 0.1px;
 }
 
 .alien-chat-msg-user .alien-chat-msg-text {
-  background: rgba(0, 240, 255, 0.08);
-  border: 1px solid rgba(0, 240, 255, 0.15);
+  background: rgba(0, 240, 255, 0.07);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  border-bottom-right-radius: 4px;
   color: var(--text-primary);
 }
 
 .alien-chat-msg-ai .alien-chat-msg-text {
-  background: rgba(57, 255, 20, 0.05);
-  border: 1px solid rgba(57, 255, 20, 0.1);
+  background: rgba(57, 255, 20, 0.04);
+  border: 1px solid rgba(57, 255, 20, 0.08);
+  border-bottom-left-radius: 4px;
   color: var(--text-secondary);
 }
 
+/* --- AI Avatar --- */
+
 .alien-chat-ai-icon {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(57, 255, 20, 0.1);
-  border: 1px solid rgba(57, 255, 20, 0.2);
-  color: var(--alien);
-  font-size: 0.7rem;
-  font-weight: 700;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: rgba(57, 255, 20, 0.06);
+  border: 1px solid rgba(57, 255, 20, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 2px;
+  margin-top: 1px;
 }
+
+/* --- Thinking Animation --- */
 
 .alien-chat-thinking {
   display: flex;
   gap: 5px;
-  padding: 14px !important;
+  padding: 14px 16px !important;
+  align-items: center;
 }
 
 .alien-chat-thinking span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--alien);
+  background: var(--alien-green);
   opacity: 0.4;
   animation: think-dot 1.4s ease-in-out infinite;
 }
@@ -2457,98 +2649,114 @@ input:focus, select:focus {
 .alien-chat-thinking span:nth-child(3) { animation-delay: 0.4s; }
 
 @keyframes think-dot {
-  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
+  0%, 100% { opacity: 0.2; transform: scale(0.7); }
+  50% { opacity: 1; transform: scale(1.1); }
 }
+
+/* --- Navigation Hints --- */
 
 .alien-chat-nav-hints {
   display: flex;
-  gap: 8px;
-  padding: 4px 0 4px 34px;
+  gap: 6px;
+  padding: 6px 0 2px 38px;
   flex-wrap: wrap;
 }
 
 .alien-chat-nav-btn {
   padding: 5px 12px;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-family: var(--font-mono);
-  letter-spacing: 0.5px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
   color: var(--cyan);
-  border: 1px solid rgba(0, 240, 255, 0.2);
-  border-radius: 6px;
-  background: rgba(0, 240, 255, 0.05);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(0, 240, 255, 0.04);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .alien-chat-nav-btn:hover {
-  background: rgba(0, 240, 255, 0.12);
-  border-color: var(--cyan);
+  background: rgba(0, 240, 255, 0.1);
+  border-color: rgba(0, 240, 255, 0.35);
+  transform: translateY(-1px);
 }
+
+/* --- Error --- */
 
 .alien-chat-error {
   padding: 10px 14px;
-  border-radius: 8px;
-  background: rgba(255, 60, 60, 0.06);
-  border: 1px solid rgba(255, 60, 60, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 45, 85, 0.05);
+  border: 1px solid rgba(255, 45, 85, 0.12);
   color: #ff6b6b;
-  font-size: 0.8rem;
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
   text-align: center;
+  animation: msg-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* --- Input Area --- */
 
 .alien-chat-input-area {
   display: flex;
   gap: 8px;
-  padding: 12px 14px;
-  border-top: 1px solid rgba(57, 255, 20, 0.08);
-  background: rgba(0, 0, 0, 0.3);
+  padding: 14px 16px;
+  border-top: 1px solid rgba(57, 255, 20, 0.06);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .alien-chat-input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px 16px;
   color: var(--text-primary);
-  font-size: 0.85rem;
-  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-family: var(--font-sans);
+  font-weight: 400;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
+  letter-spacing: 0.1px;
 }
 
 .alien-chat-input:focus {
-  border-color: rgba(57, 255, 20, 0.3);
+  border-color: rgba(57, 255, 20, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 3px rgba(57, 255, 20, 0.04);
 }
 
 .alien-chat-input::placeholder {
   color: var(--text-muted);
-  opacity: 0.5;
+  opacity: 0.6;
+  font-weight: 400;
 }
 
 .alien-chat-send {
   width: 40px;
   height: 40px;
-  border-radius: 8px;
-  border: 1px solid rgba(57, 255, 20, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(57, 255, 20, 0.15);
   background: rgba(57, 255, 20, 0.06);
-  color: var(--alien);
-  font-size: 1.1rem;
-  font-weight: 700;
+  color: var(--alien-green);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .alien-chat-send:hover:not(:disabled) {
-  background: rgba(57, 255, 20, 0.12);
-  border-color: var(--alien);
+  background: rgba(57, 255, 20, 0.14);
+  border-color: rgba(57, 255, 20, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(57, 255, 20, 0.1);
 }
 
 .alien-chat-send:disabled {
-  opacity: 0.3;
+  opacity: 0.25;
   cursor: not-allowed;
 }
 
@@ -2885,16 +3093,30 @@ input:focus, select:focus {
     padding: 16px;
   }
   .alien-chat-window {
-    width: calc(100vw - 24px);
-    right: 12px;
-    bottom: 12px;
-    height: 60vh;
+    width: calc(100vw - 16px);
+    right: 8px;
+    bottom: 8px;
+    height: 70vh;
+    max-height: 600px;
+    border-radius: 16px;
   }
   .alien-chat-trigger {
     bottom: 16px;
     right: 16px;
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
+  }
+  .alien-chat-trigger-label {
+    display: none;
+  }
+  .alien-chat-header {
+    padding: 12px 16px;
+  }
+  .alien-chat-messages {
+    padding: 16px;
+  }
+  .alien-chat-input-area {
+    padding: 12px;
   }
   .guide-steps {
     grid-template-columns: 1fr;

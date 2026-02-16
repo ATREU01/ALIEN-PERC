@@ -29,6 +29,49 @@ const NAV_LABELS: Record<string, string> = {
   guide: "Read the Guide",
 };
 
+const SUGGESTED_PROMPTS = [
+  "What is Alienator?",
+  "How does percolator work?",
+  "How do I trade?",
+  "Tell me about the insurance fund",
+];
+
+// Inline Alienator logo SVG component — matches brand identity
+function AlienLogo({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="32" cy="30" rx="22" ry="26" fill="url(#alien-chat-grad)" />
+      <ellipse cx="23" cy="26" rx="6" ry="8" fill="#050510" />
+      <ellipse cx="41" cy="26" rx="6" ry="8" fill="#050510" />
+      <ellipse cx="23" cy="26" rx="4.2" ry="5.8" fill="#39ff14" opacity="0.85" />
+      <ellipse cx="41" cy="26" rx="4.2" ry="5.8" fill="#39ff14" opacity="0.85" />
+      <ellipse cx="23" cy="24" rx="1.8" ry="2.5" fill="#fff" opacity="0.5" />
+      <ellipse cx="41" cy="24" rx="1.8" ry="2.5" fill="#fff" opacity="0.5" />
+      <defs>
+        <linearGradient id="alien-chat-grad" x1="32" y1="0" x2="32" y2="60">
+          <stop stopColor="#39ff14" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#00f0ff" stopOpacity="0.15" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+// Larger alien face for the header
+function AlienHeaderLogo() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="32" cy="30" rx="22" ry="26" stroke="#39ff14" strokeWidth="1.5" fill="rgba(57, 255, 20, 0.06)" />
+      <ellipse cx="23" cy="26" rx="6" ry="8" fill="#050510" />
+      <ellipse cx="41" cy="26" rx="6" ry="8" fill="#050510" />
+      <ellipse cx="23" cy="26" rx="4.2" ry="5.8" fill="#39ff14" opacity="0.8" />
+      <ellipse cx="41" cy="26" rx="4.2" ry="5.8" fill="#39ff14" opacity="0.8" />
+      <ellipse cx="23" cy="24" rx="1.8" ry="2.5" fill="#fff" opacity="0.45" />
+      <ellipse cx="41" cy="24" rx="1.8" ry="2.5" fill="#fff" opacity="0.45" />
+    </svg>
+  );
+}
+
 export function AlienChat({ onNavigate }: AlienChatProps) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -72,11 +115,11 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
     };
   };
 
-  const sendMessage = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
+  const sendMessage = async (text?: string) => {
+    const msg = (text || input).trim();
+    if (!msg || loading) return;
 
-    const userMsg: Message = { role: "user", content: text };
+    const userMsg: Message = { role: "user", content: msg };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
@@ -88,7 +131,7 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: text,
+          message: msg,
           history: newMessages.slice(-10),
           marketContext: buildMarketContext(),
         }),
@@ -101,7 +144,7 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
 
       const data = await res.json();
       const { clean, navTargets } = parseNavHints(data.response);
-      const msgIndex = newMessages.length; // index of this AI message
+      const msgIndex = newMessages.length;
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: clean },
@@ -110,11 +153,11 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
         setNavHints((prev) => ({ ...prev, [msgIndex]: navTargets }));
       }
     } catch (err: any) {
-      const msg = err.message || "Neural link disrupted";
-      if (msg.includes("API key") || msg.includes("not configured")) {
+      const errMsg = err.message || "Neural link disrupted";
+      if (errMsg.includes("API key") || errMsg.includes("not configured")) {
         setError("Alien intelligence coming soon. Neural link not yet active.");
       } else {
-        setError(msg);
+        setError(errMsg);
       }
     } finally {
       setLoading(false);
@@ -130,49 +173,70 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
 
   return (
     <>
-      {/* Chat bubble trigger */}
+      {/* Floating trigger button */}
       {!open && (
         <button
           className="alien-chat-trigger"
           onClick={() => setOpen(true)}
           aria-label="Open Alien Intelligence chat"
         >
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <ellipse cx="14" cy="12" rx="11" ry="12" stroke="#39ff14" strokeWidth="1.5" fill="none" />
-            <ellipse cx="10" cy="10" rx="2.5" ry="3.5" fill="#39ff14" opacity="0.6" />
-            <ellipse cx="18" cy="10" rx="2.5" ry="3.5" fill="#39ff14" opacity="0.6" />
-            <ellipse cx="10.5" cy="9" rx="1" ry="1.2" fill="rgba(255,255,255,0.4)" />
-            <ellipse cx="18.5" cy="9" rx="1" ry="1.2" fill="rgba(255,255,255,0.4)" />
-            <path d="M10 17 Q14 20 18 17" stroke="#39ff14" strokeWidth="1" fill="none" opacity="0.4" />
-          </svg>
+          <div className="alien-chat-trigger-inner">
+            <AlienHeaderLogo />
+          </div>
+          <span className="alien-chat-trigger-label">AI</span>
         </button>
       )}
 
-      {/* Chat window */}
+      {/* Chat panel */}
       {open && (
         <div className="alien-chat-window">
+          {/* Header */}
           <div className="alien-chat-header">
-            <div className="alien-chat-title">
-              <span className="beta-dot" />
-              ALIEN INTELLIGENCE
+            <div className="alien-chat-header-left">
+              <div className="alien-chat-header-logo">
+                <AlienHeaderLogo />
+              </div>
+              <div className="alien-chat-header-info">
+                <span className="alien-chat-title">ALIEN INTELLIGENCE</span>
+                <span className="alien-chat-subtitle">
+                  <span className="alien-chat-status-dot" />
+                  Protocol-aware AI
+                </span>
+              </div>
             </div>
             <button
               className="alien-chat-close"
               onClick={() => setOpen(false)}
               aria-label="Close chat"
             >
-              &times;
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
             </button>
           </div>
 
+          {/* Messages */}
           <div className="alien-chat-messages">
             {messages.length === 0 && !loading && (
               <div className="alien-chat-welcome">
-                <p>Greetings, human. I am the Alienator protocol intelligence.</p>
-                <p className="text-muted">
-                  Ask me anything about the protocol, trading, how percolator works,
-                  or what makes Alienator different.
+                <div className="alien-chat-welcome-logo">
+                  <AlienLogo size={44} />
+                </div>
+                <h3 className="alien-chat-welcome-title">Alien Intelligence</h3>
+                <p className="alien-chat-welcome-desc">
+                  Protocol-aware AI with real-time on-chain data. Ask anything about Alienator, trading, or how percolator works.
                 </p>
+                <div className="alien-chat-suggestions">
+                  {SUGGESTED_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      className="alien-chat-suggestion"
+                      onClick={() => sendMessage(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -181,7 +245,11 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
                 <div
                   className={`alien-chat-msg ${msg.role === "user" ? "alien-chat-msg-user" : "alien-chat-msg-ai"}`}
                 >
-                  {msg.role === "assistant" && <span className="alien-chat-ai-icon">A</span>}
+                  {msg.role === "assistant" && (
+                    <div className="alien-chat-ai-icon">
+                      <AlienLogo size={18} />
+                    </div>
+                  )}
                   <div className="alien-chat-msg-text">{msg.content}</div>
                 </div>
                 {msg.role === "assistant" && navHints[i] && onNavigate && (
@@ -202,7 +270,9 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
 
             {loading && (
               <div className="alien-chat-msg alien-chat-msg-ai">
-                <span className="alien-chat-ai-icon">A</span>
+                <div className="alien-chat-ai-icon">
+                  <AlienLogo size={18} />
+                </div>
                 <div className="alien-chat-msg-text alien-chat-thinking">
                   <span />
                   <span />
@@ -218,12 +288,13 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Input */}
           <div className="alien-chat-input-area">
             <input
               ref={inputRef}
               className="alien-chat-input"
               type="text"
-              placeholder="Ask the alien..."
+              placeholder="Ask the alien anything..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -232,10 +303,12 @@ export function AlienChat({ onNavigate }: AlienChatProps) {
             />
             <button
               className="alien-chat-send"
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!input.trim() || loading}
             >
-              &uarr;
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 14V2M8 2L2 8M8 2L14 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
           </div>
         </div>
