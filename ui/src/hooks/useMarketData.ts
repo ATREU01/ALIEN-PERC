@@ -24,11 +24,20 @@ import {
 } from "../lib/constants";
 
 // ---------------------------------------------------------------------------
+// Debug logging — visible in browser DevTools console
+// ---------------------------------------------------------------------------
+const DEBUG = true;
+function dbg(tag: string, ...args: unknown[]) {
+  if (DEBUG) console.log(`[PERC:${tag}]`, ...args);
+}
+
+// ---------------------------------------------------------------------------
 // Shared connection — single instance, no duplicates
 // ---------------------------------------------------------------------------
 let _connection: Connection | null = null;
 function getConnection(): Connection {
   if (!_connection) {
+    dbg("RPC", "Creating connection to:", RPC_ENDPOINT);
     _connection = new Connection(RPC_ENDPOINT, {
       commitment: "confirmed",
       disableRetryOnRateLimit: true, // we handle retries ourselves
@@ -42,12 +51,14 @@ function getConnection(): Connection {
 // ---------------------------------------------------------------------------
 async function fetchWithBackoff<T>(
   fn: () => Promise<T>,
+  label = "rpc",
   maxRetries = 3,
   baseDelayMs = 2000,
 ): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
+      if (attempt > 0) dbg(label, `retry attempt ${attempt}/${maxRetries}`);
       return await fn();
     } catch (e: unknown) {
       lastError = e;
@@ -55,8 +66,11 @@ async function fetchWithBackoff<T>(
       const isRateLimit = msg.includes("429") || msg.includes("Too Many Requests");
       const isNetwork = msg.includes("fetch") || msg.includes("ECONNREFUSED");
 
+      dbg(label, `error (attempt ${attempt}):`, msg, { isRateLimit, isNetwork });
+
       if ((isRateLimit || isNetwork) && attempt < maxRetries) {
         const delay = baseDelayMs * Math.pow(2, attempt);
+        dbg(label, `backing off ${delay}ms...`);
         await new Promise((r) => setTimeout(r, delay));
         continue;
       }
@@ -100,24 +114,37 @@ function notifyListeners() {
 async function loadKnownMarkets(): Promise<
   Array<{ address: string; state: MarketState }>
 > {
-  if (KNOWN_MARKETS.length === 0) return [];
+  dbg("fallback", `Loading ${KNOWN_MARKETS.length} known markets individually`);
+  if (KNOWN_MARKETS.length === 0) {
+    dbg("fallback", "KNOWN_MARKETS is empty — nothing to load");
+    return [];
+  }
 
   const conn = getConnection();
   const results: Array<{ address: string; state: MarketState }> = [];
 
   // Fetch all known markets in parallel
   const fetches = KNOWN_MARKETS.map(async (market) => {
+    dbg("fallback", `Fetching known market: ${market.slabAddress} (${market.name})`);
     try {
-      const info = await fetchWithBackoff(() =>
-        conn.getAccountInfo(new PublicKey(market.slabAddress)),
+      const info = await fetchWithBackoff(
+        () => conn.getAccountInfo(new PublicKey(market.slabAddress)),
+        `getAccountInfo:${market.symbol}`,
       );
-      if (!info) return null;
+      if (!info) {
+        dbg("fallback", `Account NOT FOUND: ${market.slabAddress} — wrong network?`);
+        return null;
+      }
+      dbg("fallback", `Got account data: ${info.data.length} bytes, owner: ${info.owner.toBase58()}`);
       const data = Buffer.from(info.data);
+      const state = parseMarketState(data);
+      dbg("fallback", `Parsed OK: ${market.name}, ${state.numAccounts} accounts, mark=${state.markPriceE6}`);
       return {
         address: market.slabAddress,
-        state: parseMarketState(data),
+        state,
       };
-    } catch {
+    } catch (e) {
+      dbg("fallback", `FAILED to load ${market.slabAddress}:`, e instanceof Error ? e.message : e);
       return null;
     }
   });
@@ -126,6 +153,7 @@ async function loadKnownMarkets(): Promise<
   for (const r of settled) {
     if (r) results.push(r);
   }
+  dbg("fallback", `Loaded ${results.length}/${KNOWN_MARKETS.length} known markets`);
   return results;
 }
 
@@ -134,7 +162,15 @@ async function loadKnownMarkets(): Promise<
 // ---------------------------------------------------------------------------
 async function runDiscovery(): Promise<void> {
   // Already in-flight — piggyback on existing request
-  if (discoveryCache.promise) return discoveryCache.promise;
+  if (discoveryCache.promise) {
+    dbg("discovery", "Already in-flight, piggyback on existing request");
+    return discoveryCache.promise;
+  }
+
+  dbg("discovery", "=== STARTING MARKET DISCOVERY ===");
+  dbg("discovery", "RPC endpoint:", RPC_ENDPOINT);
+  dbg("discovery", "Program ID:", PERCOLATOR_PROGRAM_ID.toBase58());
+  dbg("discovery", "Known markets:", KNOWN_MARKETS.length);
 
   discoveryCache.loading = true;
   discoveryCache.error = null;
@@ -146,40 +182,52 @@ async function runDiscovery(): Promise<void> {
       let parsed: Array<{ address: string; state: MarketState }> = [];
 
       // Strategy 1: Try full on-chain scan via getProgramAccounts
+      dbg("discovery", "Strategy 1: getProgramAccounts...");
       try {
-        const accounts = await fetchWithBackoff(() =>
-          conn.getProgramAccounts(PERCOLATOR_PROGRAM_ID, {
-            filters: [
-              {
-                memcmp: {
-                  offset: 0,
-                  bytes: "6Aptvk7gABj", // Base58 of PERCOLAT magic u64 LE
+        const accounts = await fetchWithBackoff(
+          () =>
+            conn.getProgramAccounts(PERCOLATOR_PROGRAM_ID, {
+              filters: [
+                {
+                  memcmp: {
+                    offset: 0,
+                    bytes: "6Aptvk7gABj", // Base58 of PERCOLAT magic u64 LE
+                  },
                 },
-              },
-            ],
-            dataSlice: { offset: 0, length: 9200 }, // Header+Config+Engine only
-          }),
+              ],
+              dataSlice: { offset: 0, length: 9200 }, // Header+Config+Engine only
+            }),
+          "getProgramAccounts",
         );
+
+        dbg("discovery", `getProgramAccounts returned ${accounts.length} accounts`);
 
         parsed = accounts
           .map((a) => {
             try {
               const data = Buffer.from(a.account.data);
+              const state = parseMarketState(data);
+              dbg("discovery", `  Parsed: ${a.pubkey.toBase58()} — ${state.numAccounts} accounts`);
               return {
                 address: a.pubkey.toBase58(),
-                state: parseMarketState(data),
+                state,
               };
-            } catch {
+            } catch (e) {
+              dbg("discovery", `  PARSE FAILED: ${a.pubkey.toBase58()}:`, e instanceof Error ? e.message : e);
               return null;
             }
           })
           .filter((m): m is NonNullable<typeof m> => m !== null);
-      } catch {
+
+        dbg("discovery", `Strategy 1 result: ${parsed.length} valid markets`);
+      } catch (e) {
+        dbg("discovery", "Strategy 1 FAILED:", e instanceof Error ? e.message : e);
         // getProgramAccounts failed — that's OK, we have fallback
       }
 
       // Strategy 2: If scan returned nothing, load known markets individually
       if (parsed.length === 0) {
+        dbg("discovery", "Strategy 2: falling back to known markets...");
         parsed = await loadKnownMarkets();
       } else {
         // Merge: add any known markets that weren't found in the scan
@@ -188,6 +236,7 @@ async function runDiscovery(): Promise<void> {
           (km) => !foundAddresses.has(km.slabAddress),
         );
         if (missing.length > 0) {
+          dbg("discovery", `Merging ${missing.length} missing known markets`);
           const extras = await loadKnownMarkets();
           for (const e of extras) {
             if (!foundAddresses.has(e.address)) {
@@ -200,21 +249,29 @@ async function runDiscovery(): Promise<void> {
       discoveryCache.markets = parsed;
       discoveryCache.timestamp = Date.now();
       discoveryCache.error = parsed.length === 0 ? "No markets found on-chain" : null;
+      dbg("discovery", `=== DISCOVERY COMPLETE: ${parsed.length} markets ===`);
+      if (parsed.length === 0) {
+        dbg("discovery", "NO MARKETS FOUND. Check: (1) RPC points to correct network, (2) program is deployed, (3) slab account exists");
+      }
     } catch (e: unknown) {
+      dbg("discovery", "OUTER CATCH — both strategies may have failed:", e instanceof Error ? e.message : e);
       // Both strategies failed — try known markets as last resort
       try {
+        dbg("discovery", "Last resort: loading known markets...");
         const fallback = await loadKnownMarkets();
         if (fallback.length > 0) {
           discoveryCache.markets = fallback;
           discoveryCache.timestamp = Date.now();
           discoveryCache.error = null;
+          dbg("discovery", `Last resort SUCCESS: ${fallback.length} markets`);
           return;
         }
-      } catch {
-        // Nothing worked
+      } catch (e2) {
+        dbg("discovery", "Last resort ALSO FAILED:", e2 instanceof Error ? e2.message : e2);
       }
       discoveryCache.error =
         e instanceof Error ? e.message : "Failed to discover markets";
+      dbg("discovery", "=== DISCOVERY FAILED ===", discoveryCache.error);
     } finally {
       discoveryCache.loading = false;
       discoveryCache.promise = null;
@@ -273,17 +330,20 @@ export function useMarketData(slabAddress: string | null) {
 
   const fetchData = useCallback(async () => {
     if (!slabAddress) return;
+    dbg("marketData", `Fetching market: ${slabAddress}`);
     setLoading(true);
     setError(null);
 
     try {
       const conn = getConnection();
-      const info = await fetchWithBackoff(() =>
-        conn.getAccountInfo(new PublicKey(slabAddress)),
+      const info = await fetchWithBackoff(
+        () => conn.getAccountInfo(new PublicKey(slabAddress)),
+        "marketData",
       );
       if (!mountedRef.current) return;
       if (!info) throw new Error("Market account not found");
 
+      dbg("marketData", `Got ${info.data.length} bytes, parsing...`);
       const data = Buffer.from(info.data);
       const parsed = parseMarketState(data);
       setState(parsed);
@@ -297,9 +357,12 @@ export function useMarketData(slabAddress: string | null) {
       }
       setAccounts(accts);
       setLastUpdate(Date.now());
+      dbg("marketData", `Loaded: ${accts.length} accounts, mark=${parsed.markPriceE6}`);
     } catch (e: unknown) {
       if (!mountedRef.current) return;
-      setError(e instanceof Error ? e.message : "Failed to fetch market data");
+      const msg = e instanceof Error ? e.message : "Failed to fetch market data";
+      dbg("marketData", "ERROR:", msg);
+      setError(msg);
     } finally {
       if (mountedRef.current) setLoading(false);
     }
