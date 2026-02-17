@@ -15,9 +15,17 @@ export const MATCHER_PROGRAM_ID = new PublicKey(
 // The proxy at /api/rpc (server.js) forwards to SOLANA_RPC_URL with the API key
 // kept server-side. VITE_RPC_URL is ONLY for local dev (it gets baked into the
 // JS bundle by Vite, so never set it in production/Railway).
-export const RPC_ENDPOINT = import.meta.env.DEV
-  ? (import.meta.env.VITE_RPC_URL || "/api/rpc")
-  : "/api/rpc";
+function resolveRpcEndpoint(): string {
+  if (import.meta.env.DEV && import.meta.env.VITE_RPC_URL) {
+    return import.meta.env.VITE_RPC_URL;
+  }
+  // Build full URL from relative /api/rpc — Connection requires http(s)://
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/api/rpc`;
+  }
+  return "https://api.devnet.solana.com";
+}
+export const RPC_ENDPOINT = resolveRpcEndpoint();
 
 // Contract Address (set via env var VITE_CONTRACT_ADDRESS after pump.fun launch)
 export const CONTRACT_ADDRESS: string =
