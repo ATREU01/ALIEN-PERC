@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { useMarketData, useMarketDiscovery } from "../hooks/useMarketData";
 import { usePercolatorTx } from "../hooks/usePercolatorTx";
 import {
@@ -20,6 +20,12 @@ import {
   buildWithdrawTx,
   buildCloseAccountTx,
 } from "../lib/transactions";
+
+/** Filter out ComputeBudgetProgram instructions from a transaction */
+const COMPUTE_BUDGET_ID = ComputeBudgetProgram.programId;
+function getNonBudgetInstructions(tx: Transaction) {
+  return tx.instructions.filter((ix) => !ix.programId.equals(COMPUTE_BUDGET_ID));
+}
 
 type OrderSide = "long" | "short";
 
@@ -66,100 +72,115 @@ export function Trade() {
 
   const tokenMultiplier = useMemo(() => 10 ** tokenDecimals, [tokenDecimals]);
 
-  // Handle trade submission
+  // Handle trade submission — ONE wallet popup for Deposit+Crank+Trade combined
   const handleTrade = async () => {
     if (!publicKey || !selectedMarket || !rawData || !state || !amount) return;
     const slab = new PublicKey(selectedMarket);
     const amountLamports = BigInt(Math.floor(Number(amount) * tokenMultiplier));
+    console.log("[TRADE] Starting trade:", { side: orderSide, amount, leverage, amountLamports: amountLamports.toString(), slab: slab.toBase58() });
 
-    // Step 1: Create account if user doesn't have one
+    // Step 1: Create account if user doesn't have one (separate tx — only first time ever)
     if (myAccountIdx === null) {
+      console.log("[TRADE] No user account found — creating one first (InitUser)...");
       const result = await execute(async () => ({
         tx: await buildInitUserTx(connection, publicKey, slab, rawData),
       }));
-      if (result.error) return;
-      // Wait for chain to confirm, then refetch
+      if (result.error) {
+        console.error("[TRADE] InitUser FAILED:", result.error);
+        return;
+      }
+      console.log("[TRADE] InitUser confirmed, waiting 2s then refetching slab...");
       await new Promise((r) => setTimeout(r, 2000));
       await refetch();
     }
 
-    // Refetch slab data to get latest state
+    // Refetch slab data ONCE to get latest state
+    console.log("[TRADE] Fetching fresh slab data...");
     const freshInfo = await connection.getAccountInfo(slab);
-    if (!freshInfo) return;
+    if (!freshInfo) { console.error("[TRADE] Slab account not found!"); return; }
     const freshData = Buffer.from(freshInfo.data);
+    console.log("[TRADE] Got slab data:", freshInfo.data.length, "bytes");
+
     const userIdx = findUserAccount(freshData, publicKey, "user");
-    if (userIdx === null) return;
+    if (userIdx === null) { console.error("[TRADE] User account not found in slab after InitUser!"); return; }
+    console.log("[TRADE] User account index:", userIdx);
 
-    // Step 2: Deposit collateral (only if needed)
-    const depositResult = await execute(async () => ({
-      tx: await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports),
-    }));
-    if (depositResult.error) return;
-
-    // Refetch again after deposit
-    const postDepositInfo = await connection.getAccountInfo(slab);
-    if (!postDepositInfo) return;
-    const postDepositData = Buffer.from(postDepositInfo.data);
-
-    // Step 3: Find LP to trade against
-    const lp = findFirstLP(postDepositData);
-    if (!lp) return;
-
-    // Step 4: Crank — keeps the market fresh so TradeCpi doesn't fail
-    const crankResult = await execute(async () => ({
-      tx: buildKeeperCrankTx(publicKey, slab, postDepositData),
-    }));
-    if (crankResult.error) return;
-
-    // Refetch after crank for freshest data
-    const postCrankInfo = await connection.getAccountInfo(slab);
-    if (!postCrankInfo) return;
-    const postCrankData = Buffer.from(postCrankInfo.data);
-    const postCrankUserIdx = findUserAccount(postCrankData, publicKey, "user");
-    if (postCrankUserIdx === null) return;
-    const postCrankLp = findFirstLP(postCrankData);
-    if (!postCrankLp) return;
+    const lp = findFirstLP(freshData);
+    if (!lp) { console.error("[TRADE] No LP found on this market — cannot trade"); return; }
+    console.log("[TRADE] Found LP:", { idx: lp.idx, owner: lp.owner.toBase58(), matcher: lp.matcherProgram.toBase58() });
 
     // Calculate position size
     const posNotional = Number(amount) * leverage;
     const sizeRaw = BigInt(Math.floor(posNotional * tokenMultiplier));
     const size = orderSide === "long" ? sizeRaw : -sizeRaw;
+    console.log("[TRADE] Position size:", { notional: posNotional, sizeRaw: sizeRaw.toString(), signedSize: size.toString() });
 
-    // Step 5: Execute trade (immediately after crank)
-    await execute(async () => ({
-      tx: await buildTradeCpiTx(
-        publicKey,
-        slab,
-        postCrankData,
-        postCrankLp.idx,
-        postCrankLp.owner,
-        postCrankLp.matcherProgram,
-        postCrankLp.matcherContext,
-        postCrankUserIdx,
-        size,
-      ),
-    }), refetch);
+    // Build all 3 transactions individually, then combine instructions into ONE tx
+    console.log("[TRADE] Building combined Deposit+Crank+Trade transaction...");
+    await execute(async () => {
+      const depositTx = await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports);
+      console.log("[TRADE]   Deposit instructions:", depositTx.instructions.length);
+
+      const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
+      console.log("[TRADE]   Crank instructions:", crankTx.instructions.length);
+
+      const tradeTx = await buildTradeCpiTx(
+        publicKey, slab, freshData,
+        lp.idx, lp.owner, lp.matcherProgram, lp.matcherContext,
+        userIdx, size,
+      );
+      console.log("[TRADE]   Trade instructions:", tradeTx.instructions.length);
+
+      // Combine: single compute budget + all real instructions
+      const combined = new Transaction();
+      combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }));
+
+      for (const tx of [depositTx, crankTx, tradeTx]) {
+        for (const ix of getNonBudgetInstructions(tx)) {
+          combined.add(ix);
+        }
+      }
+
+      console.log("[TRADE] Combined tx total instructions:", combined.instructions.length,
+        "(1 compute budget + deposit + crank + trade)");
+      return { tx: combined };
+    }, refetch);
+
+    console.log("[TRADE] Trade flow complete");
   };
 
-  // Handle withdraw
+  // Handle withdraw — ONE wallet popup for Crank+Withdraw combined
   const handleWithdraw = async (acctIdx: number, acctCapital: bigint) => {
     if (!publicKey || !selectedMarket || !rawData) return;
     const slab = new PublicKey(selectedMarket);
+    console.log("[WITHDRAW] Starting withdraw:", { acctIdx, capital: acctCapital.toString(), slab: slab.toBase58() });
 
-    // Crank first to settle PnL
-    const crankResult = await execute(async () => ({
-      tx: buildKeeperCrankTx(publicKey, slab, rawData),
-    }));
-    if (crankResult.error) return;
-
-    // Refetch after crank
+    // Fetch fresh data
+    console.log("[WITHDRAW] Fetching fresh slab data...");
     const freshInfo = await connection.getAccountInfo(slab);
-    if (!freshInfo) return;
+    if (!freshInfo) { console.error("[WITHDRAW] Slab account not found!"); return; }
     const freshData = Buffer.from(freshInfo.data);
 
-    await execute(async () => ({
-      tx: await buildWithdrawTx(connection, publicKey, slab, freshData, acctIdx, acctCapital),
-    }), refetch);
+    // Build combined Crank+Withdraw in ONE transaction
+    console.log("[WITHDRAW] Building combined Crank+Withdraw transaction...");
+    await execute(async () => {
+      const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
+      const withdrawTx = await buildWithdrawTx(connection, publicKey, slab, freshData, acctIdx, acctCapital);
+
+      const combined = new Transaction();
+      combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }));
+
+      for (const tx of [crankTx, withdrawTx]) {
+        for (const ix of getNonBudgetInstructions(tx)) {
+          combined.add(ix);
+        }
+      }
+
+      console.log("[WITHDRAW] Combined tx instructions:", combined.instructions.length);
+      return { tx: combined };
+    }, refetch);
+
+    console.log("[WITHDRAW] Withdraw flow complete");
   };
 
   // Handle close

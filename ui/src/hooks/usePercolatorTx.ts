@@ -102,37 +102,56 @@ export function usePercolatorTx() {
       setLastSignature(null);
 
       try {
+        console.log("[TX] Building transaction...");
         const { tx, extraSigners } = await buildFn();
+        console.log("[TX] Built tx with", tx.instructions.length, "instructions");
 
         // Set recent blockhash and fee payer
         const { blockhash, lastValidBlockHeight } =
           await connection.getLatestBlockhash("confirmed");
         tx.recentBlockhash = blockhash;
         tx.feePayer = publicKey;
+        console.log("[TX] Blockhash:", blockhash.slice(0, 12) + "...", "validUntil:", lastValidBlockHeight);
 
         // Sign with any extra keypairs (e.g., slab keypair for initMarket)
         if (extraSigners?.length) {
+          console.log("[TX] Partial-signing with", extraSigners.length, "extra keypair(s)");
           tx.partialSign(...extraSigners);
         }
 
+        // Log instruction details
+        tx.instructions.forEach((ix, i) => {
+          console.log(`[TX] ix[${i}] program=${ix.programId.toBase58().slice(0, 8)}... keys=${ix.keys.length} data=${ix.data.length}B`);
+        });
+
         // Simulate first to get detailed error logs (wallet adapter swallows them)
+        console.log("[TX] Simulating transaction...");
         const simResult = await connection.simulateTransaction(tx);
         if (simResult.value.err) {
           const errMsg = extractSimError(simResult.value.logs, simResult.value.err);
-          console.error("[TX SIM FAILED]", errMsg, "\nLogs:", simResult.value.logs);
+          console.error("[TX SIM FAILED]", errMsg);
+          console.error("[TX SIM LOGS]", simResult.value.logs?.join("\n"));
+          console.error("[TX SIM ERR]", JSON.stringify(simResult.value.err));
           setLastError(errMsg);
           setStatus("error");
           setTimeout(() => setStatus("idle"), 8000);
           return { error: errMsg };
         }
+        console.log("[TX] Simulation OK — CU used:", simResult.value.unitsConsumed);
+        if (simResult.value.logs) {
+          console.log("[TX SIM LOGS]", simResult.value.logs.join("\n"));
+        }
 
         setStatus("signing");
+        console.log("[TX] Requesting wallet signature...");
         // Use skipPreflight since we already simulated above
         const signature = await sendTransaction(tx, connection, {
           skipPreflight: true,
         });
+        console.log("[TX] Sent! Signature:", signature);
 
         setStatus("confirming");
+        console.log("[TX] Polling for confirmation (HTTP-based, no WebSocket)...");
         // Use HTTP-polling instead of WebSocket-based confirmTransaction.
         // Our /api/rpc proxy is HTTP-only — WebSocket subscriptions hang forever.
         const confirmError = await pollConfirmTransaction(
@@ -144,12 +163,14 @@ export function usePercolatorTx() {
         );
 
         if (confirmError?.err) {
-          const errMsg = `Transaction failed: ${JSON.stringify(confirmError.err)}`;
+          const errMsg = `Transaction failed on-chain: ${JSON.stringify(confirmError.err)}`;
+          console.error("[TX CONFIRM FAILED]", errMsg);
           setLastError(errMsg);
           setStatus("error");
           return { signature, error: errMsg };
         }
 
+        console.log("[TX] CONFIRMED:", signature);
         setLastSignature(signature);
         setStatus("success");
         onSuccess?.();
@@ -170,6 +191,7 @@ export function usePercolatorTx() {
           .replace("WalletSendTransactionError: ", "")
           .replace("Unexpected error", "Transaction simulation failed — check console for details");
         console.error("[TX ERROR]", errMsg, e);
+        if (e?.logs) console.error("[TX ERROR LOGS]", e.logs);
         setLastError(errMsg);
         setStatus("error");
 
