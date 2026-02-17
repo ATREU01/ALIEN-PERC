@@ -557,6 +557,38 @@ export function buildUpdateAdminTx(
 }
 
 /**
+ * Build KeeperCrank transaction (permissionless — any wallet can call)
+ * This must be called before TradeCpi to keep the crank fresh.
+ */
+export function buildKeeperCrankTx(
+  caller: PublicKey,
+  slab: PublicKey,
+  slabData: Buffer,
+): Transaction {
+  // For hyperp, oracle is the slab itself
+  const oracle = isHyperp(slabData) ? slab : readOracleAuthority(slabData);
+
+  // callerIdx = 65535 (u16::MAX) = permissionless mode
+  const ixData = Buffer.concat([
+    encU8(IX.KeeperCrank),
+    encU16(65535),
+    encU8(0), // allowPanic = false
+  ]);
+
+  const ix = buildIx(PERCOLATOR_PROGRAM_ID, [
+    { pubkey: caller, isSigner: true, isWritable: false },
+    { pubkey: slab, isSigner: false, isWritable: true },
+    { pubkey: SYSVAR_CLOCK_PUBKEY, isSigner: false, isWritable: false },
+    { pubkey: oracle, isSigner: false, isWritable: false },
+  ], ixData);
+
+  const tx = new Transaction();
+  tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
+  tx.add(ix);
+  return tx;
+}
+
+/**
  * Build CloseAccount transaction
  */
 export async function buildCloseAccountTx(

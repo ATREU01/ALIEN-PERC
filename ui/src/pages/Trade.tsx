@@ -16,6 +16,7 @@ import {
   buildInitUserTx,
   buildDepositTx,
   buildTradeCpiTx,
+  buildKeeperCrankTx,
   buildWithdrawTx,
   buildCloseAccountTx,
 } from "../lib/transactions";
@@ -75,50 +76,66 @@ export function Trade() {
     if (myAccountIdx === null) {
       const result = await execute(async () => ({
         tx: await buildInitUserTx(connection, publicKey, slab, rawData),
-      }), refetch);
+      }));
       if (result.error) return;
-      // Wait for refetch to pick up the new account
+      // Wait for chain to confirm, then refetch
       await new Promise((r) => setTimeout(r, 2000));
       await refetch();
     }
 
-    // Refetch slab data after possible account creation
+    // Refetch slab data to get latest state
     const freshInfo = await connection.getAccountInfo(slab);
     if (!freshInfo) return;
     const freshData = Buffer.from(freshInfo.data);
     const userIdx = findUserAccount(freshData, publicKey, "user");
     if (userIdx === null) return;
 
-    // Step 2: Deposit collateral
+    // Step 2: Deposit collateral (only if needed)
     const depositResult = await execute(async () => ({
       tx: await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports),
-    }), refetch);
+    }));
     if (depositResult.error) return;
 
-    // Step 3: Find LP to trade against
-    const lp = findFirstLP(freshData);
-    if (!lp) {
-      return; // No LP available
-    }
+    // Refetch again after deposit
+    const postDepositInfo = await connection.getAccountInfo(slab);
+    if (!postDepositInfo) return;
+    const postDepositData = Buffer.from(postDepositInfo.data);
 
-    // Calculate position size: amount * leverage in token units (e6)
-    // size = collateral * leverage * 1e6 / markPrice (as e6 i128)
-    const markPrice = state.markPriceE6;
+    // Step 3: Find LP to trade against
+    const lp = findFirstLP(postDepositData);
+    if (!lp) return;
+
+    // Step 4: Crank — keeps the market fresh so TradeCpi doesn't fail
+    const crankResult = await execute(async () => ({
+      tx: buildKeeperCrankTx(publicKey, slab, postDepositData),
+    }));
+    if (crankResult.error) return;
+
+    // Refetch after crank for freshest data
+    const postCrankInfo = await connection.getAccountInfo(slab);
+    if (!postCrankInfo) return;
+    const postCrankData = Buffer.from(postCrankInfo.data);
+    const postCrankUserIdx = findUserAccount(postCrankData, publicKey, "user");
+    if (postCrankUserIdx === null) return;
+    const postCrankLp = findFirstLP(postCrankData);
+    if (!postCrankLp) return;
+
+    // Calculate position size
     const posNotional = Number(amount) * leverage;
     const sizeRaw = BigInt(Math.floor(posNotional * tokenMultiplier));
     const size = orderSide === "long" ? sizeRaw : -sizeRaw;
 
-    // Step 4: Execute trade
+    // Step 5: Execute trade (immediately after crank)
     await execute(async () => ({
       tx: await buildTradeCpiTx(
         publicKey,
         slab,
-        freshData,
-        lp.idx,
-        lp.owner,
-        lp.matcherProgram,
-        lp.matcherContext,
-        userIdx,
+        postCrankData,
+        postCrankLp.idx,
+        postCrankLp.owner,
+        postCrankLp.matcherProgram,
+        postCrankLp.matcherContext,
+        postCrankUserIdx,
         size,
       ),
     }), refetch);
@@ -128,8 +145,20 @@ export function Trade() {
   const handleWithdraw = async (acctIdx: number, acctCapital: bigint) => {
     if (!publicKey || !selectedMarket || !rawData) return;
     const slab = new PublicKey(selectedMarket);
+
+    // Crank first to settle PnL
+    const crankResult = await execute(async () => ({
+      tx: buildKeeperCrankTx(publicKey, slab, rawData),
+    }));
+    if (crankResult.error) return;
+
+    // Refetch after crank
+    const freshInfo = await connection.getAccountInfo(slab);
+    if (!freshInfo) return;
+    const freshData = Buffer.from(freshInfo.data);
+
     await execute(async () => ({
-      tx: await buildWithdrawTx(connection, publicKey, slab, rawData, acctIdx, acctCapital),
+      tx: await buildWithdrawTx(connection, publicKey, slab, freshData, acctIdx, acctCapital),
     }), refetch);
   };
 

@@ -11,11 +11,13 @@ export const MATCHER_PROGRAM_ID = new PublicKey(
   "4HcGCsyjAqnFua5ccuXyt8KRRQzKFbGTJkVChpS7Yfzy"
 );
 
-// Network — use server-side RPC proxy to keep API keys off the frontend.
-// Falls back to /api/rpc (proxied through server.js with key server-side).
-// Only use VITE_RPC_URL for local dev where you don't care about key exposure.
-export const RPC_ENDPOINT =
-  import.meta.env.VITE_RPC_URL || "/api/rpc";
+// Network — ALWAYS use the server-side RPC proxy in production.
+// The proxy at /api/rpc (server.js) forwards to SOLANA_RPC_URL with the API key
+// kept server-side. VITE_RPC_URL is ONLY for local dev (it gets baked into the
+// JS bundle by Vite, so never set it in production/Railway).
+export const RPC_ENDPOINT = import.meta.env.DEV
+  ? (import.meta.env.VITE_RPC_URL || "/api/rpc")
+  : "/api/rpc";
 
 // Contract Address (set via env var VITE_CONTRACT_ADDRESS after pump.fun launch)
 export const CONTRACT_ADDRESS: string =
