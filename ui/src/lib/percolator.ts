@@ -214,12 +214,35 @@ export function parseMarketState(data: Buffer): MarketState {
 // ACCOUNT PARSER
 // ============================================================================
 
+/**
+ * Get list of used account indices from the on-chain bitmap.
+ * This is the authoritative source for which slots are occupied.
+ */
+export function getUsedIndices(data: Buffer): number[] {
+  const base = ENGINE_OFF + ENGINE_BITMAP_OFF;
+  const used: number[] = [];
+  for (let word = 0; word < 64; word++) {
+    const bits = data.readBigUInt64LE(base + word * 8);
+    if (bits === 0n) continue;
+    for (let bit = 0; bit < 64; bit++) {
+      if ((bits >> BigInt(bit)) & 1n) {
+        used.push(word * 64 + bit);
+      }
+    }
+  }
+  return used;
+}
+
 export function parseAccount(data: Buffer, index: number): AccountData | null {
   const offset = ENGINE_OFF + ENGINE_ACCOUNTS_OFF + index * ACCOUNT_SIZE;
   if (offset + ACCOUNT_SIZE > data.length) return null;
 
-  const accountId = readU64(data, offset);
-  if (accountId === 0n) return null; // Empty slot
+  // Use bitmap to check if this slot is active (accountId can be 0 for the first account)
+  const bitmapBase = ENGINE_OFF + ENGINE_BITMAP_OFF;
+  const word = Math.floor(index / 64);
+  const bit = index % 64;
+  const bits = data.readBigUInt64LE(bitmapBase + word * 8);
+  if (((bits >> BigInt(bit)) & 1n) === 0n) return null;
 
   const capital = readU128(data, offset + 8);
   const kind = data.readUInt8(offset + 24);

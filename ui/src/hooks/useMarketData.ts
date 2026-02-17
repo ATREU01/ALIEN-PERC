@@ -13,6 +13,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import {
   parseMarketState,
   parseAccount,
+  getUsedIndices,
   type MarketState,
   type AccountData,
 } from "../lib/percolator";
@@ -349,10 +350,10 @@ export function useMarketData(slabAddress: string | null) {
       setState(parsed);
       setRawData(data);
 
-      // Parse active accounts from bitmap
+      // Parse active accounts using bitmap (authoritative source for occupied slots)
       const accts: AccountData[] = [];
-      for (let i = 0; i < MAX_ACCOUNTS && accts.length < parsed.numAccounts + 20; i++) {
-        const acct = parseAccount(data, i);
+      for (const idx of getUsedIndices(data)) {
+        const acct = parseAccount(data, idx);
         if (acct) accts.push(acct);
       }
       setAccounts(accts);

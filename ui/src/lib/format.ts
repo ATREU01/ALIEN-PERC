@@ -3,7 +3,7 @@
  */
 
 const PRICE_E6 = 1_000_000n;
-const TOKEN_DECIMALS = 9; // SPL default
+const TOKEN_DECIMALS = 6; // Alienator token decimals
 
 /**
  * Format a price stored as u64 with 1e6 precision

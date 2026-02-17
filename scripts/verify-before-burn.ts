@@ -20,15 +20,15 @@ import { parseHeader, parseConfig, parseEngine, parseParams, parseUsedIndices, f
 // LOAD MARKET INFO
 // ============================================================================
 
-const MARKET_FILE = "alien-market.json";
+const MARKET_FILE = process.env.MARKET_FILE || "devnet-market.json";
 
 if (!fs.existsSync(MARKET_FILE)) {
-  console.error(`ERROR: ${MARKET_FILE} not found. Run setup-alien-market.ts first.`);
+  console.error(`ERROR: ${MARKET_FILE} not found. Run deploy-alien-devnet.ts or setup-alien-market.ts first.`);
   process.exit(1);
 }
 
 const marketInfo = JSON.parse(fs.readFileSync(MARKET_FILE, "utf-8"));
-const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
 // ============================================================================
 // VERIFICATION
