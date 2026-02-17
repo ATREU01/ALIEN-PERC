@@ -51,6 +51,26 @@ async function pollConfirmTransaction(
   throw new Error("Transaction confirmation timed out after 2 minutes.");
 }
 
+/**
+ * Extract a human-readable error from a Solana simulation result.
+ */
+function extractSimError(logs: string[] | null, err: any): string {
+  // Look for program error in logs
+  if (logs) {
+    for (const line of logs) {
+      if (line.includes("Program log: Error:")) return line.replace("Program log: Error: ", "");
+      if (line.includes("custom program error")) {
+        const match = line.match(/custom program error: (0x[0-9a-fA-F]+)/);
+        if (match) return `Program error: ${match[1]}`;
+      }
+      if (line.includes("insufficient")) return line;
+      if (line.includes("already in use")) return "Account already in use";
+    }
+  }
+  if (err) return typeof err === "string" ? err : JSON.stringify(err);
+  return "Transaction simulation failed";
+}
+
 export type TxStatus = "idle" | "building" | "signing" | "confirming" | "success" | "error";
 
 export interface TxResult {
@@ -95,10 +115,21 @@ export function usePercolatorTx() {
           tx.partialSign(...extraSigners);
         }
 
+        // Simulate first to get detailed error logs (wallet adapter swallows them)
+        const simResult = await connection.simulateTransaction(tx);
+        if (simResult.value.err) {
+          const errMsg = extractSimError(simResult.value.logs, simResult.value.err);
+          console.error("[TX SIM FAILED]", errMsg, "\nLogs:", simResult.value.logs);
+          setLastError(errMsg);
+          setStatus("error");
+          setTimeout(() => setStatus("idle"), 8000);
+          return { error: errMsg };
+        }
+
         setStatus("signing");
+        // Use skipPreflight since we already simulated above
         const signature = await sendTransaction(tx, connection, {
-          skipPreflight: false,
-          preflightCommitment: "confirmed",
+          skipPreflight: true,
         });
 
         setStatus("confirming");
@@ -138,6 +169,7 @@ export function usePercolatorTx() {
         errMsg = errMsg
           .replace("WalletSendTransactionError: ", "")
           .replace("Unexpected error", "Transaction simulation failed — check console for details");
+        console.error("[TX ERROR]", errMsg, e);
         setLastError(errMsg);
         setStatus("error");
 
