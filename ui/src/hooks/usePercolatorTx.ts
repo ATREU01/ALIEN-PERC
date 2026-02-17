@@ -1,10 +1,55 @@
 /**
  * Hook for sending Percolator transactions via wallet adapter.
  * Handles: build → sign → send → confirm → refetch
+ *
+ * Uses HTTP-polling for confirmation instead of WebSocket subscriptions,
+ * because our /api/rpc proxy is HTTP-only (no WebSocket support).
  */
 import { useState, useCallback } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { Transaction, Keypair, PublicKey } from "@solana/web3.js";
+import { Transaction, Keypair, PublicKey, type Connection } from "@solana/web3.js";
+
+/**
+ * Poll-based transaction confirmation (no WebSocket needed).
+ * Uses getSignatureStatuses over HTTP instead of WebSocket subscriptions.
+ */
+async function pollConfirmTransaction(
+  connection: Connection,
+  signature: string,
+  blockhash: string,
+  lastValidBlockHeight: number,
+  commitment: "confirmed" | "finalized" = "confirmed",
+): Promise<{ err: any } | null> {
+  const POLL_INTERVAL_MS = 2000;
+  const MAX_POLLS = 60; // 2 minutes max
+
+  for (let i = 0; i < MAX_POLLS; i++) {
+    // Check if blockhash has expired
+    const blockHeight = await connection.getBlockHeight("confirmed");
+    if (blockHeight > lastValidBlockHeight) {
+      throw new Error(
+        "Transaction expired — blockhash no longer valid. Please try again.",
+      );
+    }
+
+    const resp = await connection.getSignatureStatuses([signature]);
+    const status = resp?.value?.[0];
+
+    if (status) {
+      if (status.err) {
+        return { err: status.err };
+      }
+      // Check if we've reached the desired commitment level
+      if (commitment === "confirmed" && status.confirmationStatus === "confirmed") return null;
+      if (commitment === "confirmed" && status.confirmationStatus === "finalized") return null;
+      if (commitment === "finalized" && status.confirmationStatus === "finalized") return null;
+    }
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  }
+
+  throw new Error("Transaction confirmation timed out after 2 minutes.");
+}
 
 export type TxStatus = "idle" | "building" | "signing" | "confirming" | "success" | "error";
 
@@ -57,13 +102,18 @@ export function usePercolatorTx() {
         });
 
         setStatus("confirming");
-        const confirmation = await connection.confirmTransaction(
-          { signature, blockhash, lastValidBlockHeight },
+        // Use HTTP-polling instead of WebSocket-based confirmTransaction.
+        // Our /api/rpc proxy is HTTP-only — WebSocket subscriptions hang forever.
+        const confirmError = await pollConfirmTransaction(
+          connection,
+          signature,
+          blockhash,
+          lastValidBlockHeight,
           "confirmed",
         );
 
-        if (confirmation.value.err) {
-          const errMsg = `Transaction failed: ${JSON.stringify(confirmation.value.err)}`;
+        if (confirmError?.err) {
+          const errMsg = `Transaction failed: ${JSON.stringify(confirmError.err)}`;
           setLastError(errMsg);
           setStatus("error");
           return { signature, error: errMsg };

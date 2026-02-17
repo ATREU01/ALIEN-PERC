@@ -42,6 +42,8 @@ function getConnection(): Connection {
     _connection = new Connection(RPC_ENDPOINT, {
       commitment: "confirmed",
       disableRetryOnRateLimit: true, // we handle retries ourselves
+      // Disable WebSocket — our /api/rpc proxy is HTTP-only.
+      wsEndpoint: "wss://localhost:0/disabled",
     });
   }
   return _connection;
