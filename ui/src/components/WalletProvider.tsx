@@ -28,6 +28,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     () => ({
       commitment: "confirmed" as const,
       disableRetryOnRateLimit: true,
+      // Disable WebSocket — our /api/rpc proxy is HTTP-only.
+      // Without this, @solana/web3.js tries wss://alienator.org/api/rpc and fails.
+      wsEndpoint: "wss://localhost:0/disabled",
     }),
     []
   );
