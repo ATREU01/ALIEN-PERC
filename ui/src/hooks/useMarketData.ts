@@ -330,9 +330,12 @@ export function useMarketData(slabAddress: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState(0);
   const mountedRef = useRef(true);
+  const addressRef = useRef(slabAddress);
 
   const fetchData = useCallback(async () => {
     if (!slabAddress) return;
+    // Stale closure guard: skip if address changed since this was called
+    if (addressRef.current !== slabAddress) return;
     dbg("marketData", `Fetching market: ${slabAddress}`);
     setLoading(true);
     setError(null);
@@ -343,7 +346,7 @@ export function useMarketData(slabAddress: string | null) {
         () => conn.getAccountInfo(new PublicKey(slabAddress)),
         "marketData",
       );
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || addressRef.current !== slabAddress) return;
       if (!info) throw new Error("Market account not found");
 
       dbg("marketData", `Got ${info.data.length} bytes, parsing...`);
@@ -362,23 +365,33 @@ export function useMarketData(slabAddress: string | null) {
       setLastUpdate(Date.now());
       dbg("marketData", `Loaded: ${accts.length} accounts, mark=${parsed.markPriceE6}`);
     } catch (e: unknown) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || addressRef.current !== slabAddress) return;
       const msg = e instanceof Error ? e.message : "Failed to fetch market data";
       dbg("marketData", "ERROR:", msg);
       setError(msg);
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current && addressRef.current === slabAddress) setLoading(false);
     }
   }, [slabAddress]);
 
   useEffect(() => {
     mountedRef.current = true;
+    addressRef.current = slabAddress;
+
     if (!slabAddress) {
       setState(null);
       setAccounts([]);
       setRawData(null);
+      setLoading(false);
       return;
     }
+
+    // Clear stale state from previous market and show loading immediately
+    setState(null);
+    setAccounts([]);
+    setRawData(null);
+    setError(null);
+    setLoading(true);
 
     fetchData();
 

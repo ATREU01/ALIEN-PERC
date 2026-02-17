@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { useMarketData, useMarketDiscovery } from "../hooks/useMarketData";
 import { usePercolatorTx } from "../hooks/usePercolatorTx";
@@ -35,6 +35,18 @@ export function Trade() {
   const { markets, loading: discovering } = useMarketDiscovery();
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
   const { state, accounts, rawData, loading, error, refetch } = useMarketData(selectedMarket);
+
+  // Auto-select the first market once discovery finishes
+  useEffect(() => {
+    if (!selectedMarket && markets.length > 0) {
+      setSelectedMarket(markets[0].address);
+    }
+  }, [markets, selectedMarket]);
+
+  // Reset trade phase when switching markets
+  useEffect(() => {
+    setTradePhase(null);
+  }, [selectedMarket]);
 
   // Order form state
   const [orderSide, setOrderSide] = useState<OrderSide>("long");
@@ -322,6 +334,24 @@ export function Trade() {
           </div>
         ))}
       </div>
+
+      {/* Loading state for selected market */}
+      {selectedMarket && !state && loading && (
+        <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
+          <span className="text-cyan">Loading market data...</span>
+        </div>
+      )}
+
+      {/* Error state for selected market */}
+      {selectedMarket && !state && !loading && error && (
+        <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
+          <span className="text-red">{error}</span>
+          <br />
+          <button className="btn-secondary" style={{ marginTop: "1rem" }} onClick={refetch}>
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Trading Terminal */}
       {selectedMarket && state && (
