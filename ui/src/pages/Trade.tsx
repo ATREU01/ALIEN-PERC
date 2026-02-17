@@ -31,7 +31,7 @@ function getNonBudgetInstructions(tx: Transaction) {
 type OrderSide = "long" | "short";
 
 export function Trade() {
-  const { execute, status, lastError, lastSignature, connected, publicKey, connection } = usePercolatorTx();
+  const { execute, status, lastError, lastSignature, txHistory, confirmElapsed, clearStatus, connected, publicKey, connection } = usePercolatorTx();
   const { markets, loading: discovering } = useMarketDiscovery();
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
   const { state, accounts, rawData, loading, error, refetch } = useMarketData(selectedMarket);
@@ -252,7 +252,7 @@ export function Trade() {
     console.log("[WITHDRAW] Withdraw flow complete");
   };
 
-  // Handle close
+  // Handle close account (zero position, zero capital)
   const handleClose = async (acctIdx: number) => {
     if (!publicKey || !selectedMarket || !rawData) return;
     const slab = new PublicKey(selectedMarket);
@@ -261,14 +261,70 @@ export function Trade() {
     }), refetch);
   };
 
+  // Handle close position — trade in reverse direction to flatten
+  const handleClosePosition = async () => {
+    if (!publicKey || !selectedMarket || !rawData || !myAccount || !myAccountIdx || tradePhase) return;
+    if (myAccount.positionSize === 0n) return;
+
+    const slab = new PublicKey(selectedMarket);
+    const reverseSize = -myAccount.positionSize; // flip sign to close
+    console.log("[CLOSE POS] Closing position, reverse size:", reverseSize.toString());
+
+    try {
+      setTradePhase("Fetching market data...");
+      let freshInfo;
+      try {
+        freshInfo = await connection.getAccountInfo(slab);
+      } catch (e: any) {
+        console.error("[CLOSE POS] RPC error:", e.message);
+        setTradePhase(null);
+        alert("RPC connection failed. Please try again.");
+        return;
+      }
+      if (!freshInfo) { setTradePhase(null); return; }
+      const freshData = Buffer.from(freshInfo.data);
+
+      const userIdx = findUserAccount(freshData, publicKey, "user");
+      if (userIdx === null) { setTradePhase(null); return; }
+
+      const lp = findFirstLP(freshData);
+      if (!lp) { console.error("[CLOSE POS] No LP found"); setTradePhase(null); return; }
+
+      setTradePhase("Closing position...");
+      await execute(async () => {
+        const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
+        const tradeTx = await buildTradeCpiTx(
+          publicKey, slab, freshData,
+          lp.idx, lp.owner, lp.matcherProgram, lp.matcherContext,
+          userIdx, reverseSize,
+        );
+
+        const combined = new Transaction();
+        combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }));
+        for (const tx of [crankTx, tradeTx]) {
+          for (const ix of getNonBudgetInstructions(tx)) {
+            combined.add(ix);
+          }
+        }
+        return { tx: combined };
+      }, refetch);
+
+      console.log("[CLOSE POS] Position close complete");
+    } catch (e: any) {
+      console.error("[CLOSE POS] Error:", e.message);
+    } finally {
+      setTradePhase(null);
+    }
+  };
+
   const isBusy = !!tradePhase || status === "building" || status === "signing" || status === "confirming";
 
   const statusLabel = (() => {
     if (tradePhase) return tradePhase;
     switch (status) {
-      case "building": return "Building tx...";
-      case "signing": return "Sign in wallet...";
-      case "confirming": return "Confirming...";
+      case "building": return "Building transaction...";
+      case "signing": return "Approve in wallet...";
+      case "confirming": return `Confirming on-chain${confirmElapsed > 0 ? ` (${confirmElapsed}s)` : "..."}`;
       case "success": return "Confirmed!";
       case "error": return lastError?.slice(0, 60) || "Error";
       default: return null;
@@ -463,23 +519,83 @@ export function Trade() {
 
               {/* My position info */}
               {myAccount && (
-                <div className="glass-card" style={{ padding: "0.75rem", marginBottom: "1rem", borderColor: "var(--alien-green)" }}>
+                <div className="glass-card" style={{ padding: "0.75rem", marginBottom: "1rem", borderColor: myAccount.positionSize !== 0n ? (myAccount.positionSize > 0n ? "var(--alien-green, #00ff88)" : "var(--red, #ff4466)") : "var(--alien-cyan, #00d4ff)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                      {myAccount.positionSize > 0n ? (
+                        <span className="text-green">LONG</span>
+                      ) : myAccount.positionSize < 0n ? (
+                        <span className="text-red">SHORT</span>
+                      ) : (
+                        <span className="text-muted">NO POSITION</span>
+                      )}
+                    </span>
+                    <span className="text-muted" style={{ fontSize: "0.7rem" }}>Account #{myAccount.index}</span>
+                  </div>
                   <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                    <span className="text-muted">Your Capital</span>
+                    <span className="text-muted">Capital</span>
                     <span className="text-cyan">{formatBigintE6(myAccount.capital)}</span>
                   </div>
-                  <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                    <span className="text-muted">Your Position</span>
-                    <span className={myAccount.positionSize > 0n ? "text-green" : myAccount.positionSize < 0n ? "text-red" : ""}>
-                      {formatBigintE6(myAccount.positionSize)}
-                    </span>
-                  </div>
-                  <div className="flex-between">
-                    <span className="text-muted">Your PnL</span>
-                    <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"}>
-                      {formatBigintE6(myAccount.pnl)}
-                    </span>
-                  </div>
+                  {myAccount.positionSize !== 0n && (
+                    <>
+                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                        <span className="text-muted">Size</span>
+                        <span className={myAccount.positionSize > 0n ? "text-green" : "text-red"}>
+                          {formatBigintE6(myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize)}
+                        </span>
+                      </div>
+                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                        <span className="text-muted">Entry Price</span>
+                        <span>${formatPriceE6(myAccount.entryPrice)}</span>
+                      </div>
+                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                        <span className="text-muted">Mark Price</span>
+                        <span className="text-cyan">${formatPriceE6(state.markPriceE6)}</span>
+                      </div>
+                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                        <span className="text-muted">PnL</span>
+                        <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"} style={{ fontWeight: 600 }}>
+                          {myAccount.pnl >= 0n ? "+" : ""}{formatBigintE6(myAccount.pnl)}
+                        </span>
+                      </div>
+                      {(() => {
+                        // Liq price estimate: price where capital + pnl = maintenance margin
+                        // notional = |size| * mark / 1e6, maint_margin = notional * maint_bps / 10000
+                        // Simplified: liq price ~ entry +/- (capital * 1e6 / |size|) adjusted for margin
+                        const absSize = myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize;
+                        if (absSize > 0n && myAccount.capital > 0n) {
+                          const capitalPerUnit = myAccount.capital * 1_000_000n / absSize;
+                          const maintReserve = myAccount.entryPrice * BigInt(state.maintenanceMarginBps) / 10_000n;
+                          const liqPrice = myAccount.positionSize > 0n
+                            ? myAccount.entryPrice - capitalPerUnit + maintReserve
+                            : myAccount.entryPrice + capitalPerUnit - maintReserve;
+                          return liqPrice > 0n ? (
+                            <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                              <span className="text-muted">Est. Liq. Price</span>
+                              <span className="text-red" style={{ fontSize: "0.8rem" }}>${formatPriceE6(liqPrice)}</span>
+                            </div>
+                          ) : null;
+                        }
+                        return null;
+                      })()}
+                      <button
+                        className="btn-secondary"
+                        style={{ width: "100%", marginTop: "0.5rem", fontSize: "0.8rem" }}
+                        disabled={isBusy}
+                        onClick={handleClosePosition}
+                      >
+                        {isBusy ? statusLabel : "Close Position"}
+                      </button>
+                    </>
+                  )}
+                  {myAccount.positionSize === 0n && myAccount.capital > 0n && (
+                    <div className="flex-between" style={{ marginTop: "0.25rem" }}>
+                      <span className="text-muted">PnL</span>
+                      <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"}>
+                        {formatBigintE6(myAccount.pnl)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -502,20 +618,95 @@ export function Trade() {
                 </button>
               )}
 
-              {/* Tx feedback */}
+              {/* Tx feedback — persistent until dismissed */}
               {status === "success" && lastSignature && (
-                <div className="text-green" style={{ marginTop: "0.5rem", fontSize: "0.8rem", textAlign: "center" }}>
-                  Confirmed! <a href={`https://solscan.io/tx/${lastSignature}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-cyan">View tx</a>
+                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--alien-green, #00ff88)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="text-green" style={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                      Trade confirmed!
+                    </span>
+                    <button
+                      onClick={clearStatus}
+                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
+                    >
+                      x
+                    </button>
+                  </div>
+                  <a
+                    href={`https://solscan.io/tx/${lastSignature}?cluster=devnet`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan"
+                    style={{ fontSize: "0.75rem", wordBreak: "break-all" }}
+                  >
+                    {lastSignature.slice(0, 20)}...{lastSignature.slice(-8)} — View on Solscan
+                  </a>
+                </div>
+              )}
+              {status === "confirming" && (
+                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--alien-cyan, #00d4ff)" }}>
+                  <div style={{ fontSize: "0.8rem", textAlign: "center" }}>
+                    <span className="text-cyan">Waiting for Solana confirmation...</span>
+                    {confirmElapsed > 0 && (
+                      <span className="text-muted" style={{ marginLeft: "0.5rem" }}>({confirmElapsed}s)</span>
+                    )}
+                  </div>
+                  {confirmElapsed > 10 && (
+                    <div className="text-muted" style={{ fontSize: "0.7rem", textAlign: "center", marginTop: "0.25rem" }}>
+                      Devnet can be slow — hang tight, your tx was sent
+                    </div>
+                  )}
                 </div>
               )}
               {status === "error" && lastError && (
-                <div className="text-red" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                  {lastError.slice(0, 120)}
+                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--red, #ff4466)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="text-red" style={{ fontSize: "0.85rem" }}>
+                      {lastError.slice(0, 120)}
+                    </span>
+                    <button
+                      onClick={clearStatus}
+                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
+                    >
+                      x
+                    </button>
+                  </div>
                 </div>
               )}
               {error && (
                 <div className="text-red" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
                   {error}
+                </div>
+              )}
+
+              {/* Recent transactions */}
+              {txHistory.length > 0 && (
+                <div style={{ marginTop: "0.75rem" }}>
+                  <span className="text-muted" style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Recent Transactions
+                  </span>
+                  {txHistory.map((tx, i) => (
+                    <div key={tx.signature + i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.25rem 0", fontSize: "0.7rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <span className={tx.status === "confirmed" ? "text-green" : "text-red"} style={{ width: "60px" }}>
+                        {tx.status === "confirmed" ? "OK" : "FAIL"}
+                      </span>
+                      <span className="text-muted">
+                        {new Date(tx.timestamp).toLocaleTimeString()}
+                      </span>
+                      {tx.signature ? (
+                        <a
+                          href={`https://solscan.io/tx/${tx.signature}?cluster=devnet`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan"
+                        >
+                          {tx.signature.slice(0, 8)}...
+                        </a>
+                      ) : (
+                        <span className="text-muted">sim failed</span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

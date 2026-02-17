@@ -5,7 +5,7 @@
  * Uses HTTP-polling for confirmation instead of WebSocket subscriptions,
  * because our /api/rpc proxy is HTTP-only (no WebSocket support).
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Transaction, Keypair, PublicKey, type Connection } from "@solana/web3.js";
 
@@ -78,12 +78,22 @@ export interface TxResult {
   error?: string;
 }
 
+export interface TxHistoryEntry {
+  signature: string;
+  timestamp: number;
+  status: "confirmed" | "failed";
+  error?: string;
+}
+
 export function usePercolatorTx() {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
   const [status, setStatus] = useState<TxStatus>("idle");
   const [lastError, setLastError] = useState<string | null>(null);
   const [lastSignature, setLastSignature] = useState<string | null>(null);
+  const [txHistory, setTxHistory] = useState<TxHistoryEntry[]>([]);
+  const [confirmElapsed, setConfirmElapsed] = useState(0);
+  const confirmTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const execute = useCallback(
     async (
@@ -100,6 +110,11 @@ export function usePercolatorTx() {
       setStatus("building");
       setLastError(null);
       setLastSignature(null);
+      setConfirmElapsed(0);
+      if (confirmTimerRef.current) {
+        clearInterval(confirmTimerRef.current);
+        confirmTimerRef.current = null;
+      }
 
       try {
         console.log("[TX] Building transaction...");
@@ -134,7 +149,7 @@ export function usePercolatorTx() {
           console.error("[TX SIM ERR]", JSON.stringify(simResult.value.err));
           setLastError(errMsg);
           setStatus("error");
-          setTimeout(() => setStatus("idle"), 8000);
+          setTxHistory((h) => [{ signature: "", timestamp: Date.now(), status: "failed" as const, error: errMsg }, ...h].slice(0, 10));
           return { error: errMsg };
         }
         console.log("[TX] Simulation OK — CU used:", simResult.value.unitsConsumed);
@@ -151,6 +166,10 @@ export function usePercolatorTx() {
         console.log("[TX] Sent! Signature:", signature);
 
         setStatus("confirming");
+        setConfirmElapsed(0);
+        confirmTimerRef.current = setInterval(() => {
+          setConfirmElapsed((s) => s + 1);
+        }, 1000);
         console.log("[TX] Polling for confirmation (HTTP-based, no WebSocket)...");
         // Use HTTP-polling instead of WebSocket-based confirmTransaction.
         // Our /api/rpc proxy is HTTP-only — WebSocket subscriptions hang forever.
@@ -161,25 +180,32 @@ export function usePercolatorTx() {
           lastValidBlockHeight,
           "confirmed",
         );
+        if (confirmTimerRef.current) {
+          clearInterval(confirmTimerRef.current);
+          confirmTimerRef.current = null;
+        }
 
         if (confirmError?.err) {
           const errMsg = `Transaction failed on-chain: ${JSON.stringify(confirmError.err)}`;
           console.error("[TX CONFIRM FAILED]", errMsg);
           setLastError(errMsg);
           setStatus("error");
+          setTxHistory((h) => [{ signature, timestamp: Date.now(), status: "failed" as const, error: errMsg }, ...h].slice(0, 10));
           return { signature, error: errMsg };
         }
 
         console.log("[TX] CONFIRMED:", signature);
         setLastSignature(signature);
         setStatus("success");
+        setTxHistory((h) => [{ signature, timestamp: Date.now(), status: "confirmed" as const }, ...h].slice(0, 10));
         onSuccess?.();
-
-        // Auto-reset after 5 seconds
-        setTimeout(() => setStatus("idle"), 5000);
 
         return { signature };
       } catch (e: any) {
+        if (confirmTimerRef.current) {
+          clearInterval(confirmTimerRef.current);
+          confirmTimerRef.current = null;
+        }
         let errMsg = e?.message || "Transaction failed";
         // Extract useful info from Solana program errors
         if (errMsg.includes("custom program error")) {
@@ -195,20 +221,27 @@ export function usePercolatorTx() {
         setLastError(errMsg);
         setStatus("error");
 
-        // Auto-reset after 8 seconds
-        setTimeout(() => setStatus("idle"), 8000);
-
         return { error: errMsg };
       }
     },
     [publicKey, sendTransaction, connection],
   );
 
+  const clearStatus = useCallback(() => {
+    setStatus("idle");
+    setLastError(null);
+    setLastSignature(null);
+    setConfirmElapsed(0);
+  }, []);
+
   return {
     execute,
     status,
     lastError,
     lastSignature,
+    txHistory,
+    confirmElapsed,
+    clearStatus,
     publicKey,
     connected: !!publicKey,
     connection,
