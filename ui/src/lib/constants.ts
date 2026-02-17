@@ -61,6 +61,7 @@ export interface KnownMarket {
   slabAddress: string;
   collateralMint: string;
   inverted: boolean;
+  decimals: number;
   icon?: string;
 }
 
@@ -73,5 +74,12 @@ export const KNOWN_MARKETS: KnownMarket[] = [
     slabAddress: "EU6MFz2b85UgZvnAmoRnXRGziJMFzrHVoh1qKRftwvcA",
     collateralMint: "B2ycZW2g5RzWv5BYPBdeAfuZe9tt7AD8uNGAozyzUpzU",
     inverted: true,
+    decimals: 6,
   },
 ];
+
+/** Get token decimals for a market by its collateral mint */
+export function getTokenDecimals(collateralMint: string): number {
+  const known = KNOWN_MARKETS.find((m) => m.collateralMint === collateralMint);
+  return known?.decimals ?? 6;
+}

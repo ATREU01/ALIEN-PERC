@@ -39,7 +39,7 @@ import { buildIx } from "../src/runtime/tx.js";
 // The "dead" admin address - system program, no private key exists
 const DEAD_ADMIN = new PublicKey("11111111111111111111111111111111");
 
-const MARKET_FILE = "alien-market.json";
+const MARKET_FILE = process.env.MARKET_FILE || "devnet-market.json";
 
 function askQuestion(question: string): Promise<string> {
   const rl = readline.createInterface({
@@ -68,7 +68,7 @@ async function main() {
   }
   const marketInfo = JSON.parse(fs.readFileSync(MARKET_FILE, "utf-8"));
 
-  const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+  const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
   const walletPath = process.env.WALLET_PATH || `${process.env.HOME}/.config/solana/id.json`;
 
   const connection = new Connection(rpcUrl, "confirmed");

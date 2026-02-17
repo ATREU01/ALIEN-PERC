@@ -9,7 +9,7 @@ import {
   truncateAddress,
   formatBigintE6,
 } from "../lib/format";
-import { getMarketName } from "../lib/constants";
+import { getMarketName, getTokenDecimals } from "../lib/constants";
 import {
   findUserAccount,
   findFirstLP,
@@ -57,11 +57,19 @@ export function Trade() {
     return findUserAccount(rawData, publicKey, "user");
   }, [publicKey, rawData]);
 
+  // Token decimals for the collateral mint (6 for Alienator, etc.)
+  const tokenDecimals = useMemo(() => {
+    if (!state) return 6;
+    return getTokenDecimals(state.collateralMint);
+  }, [state]);
+
+  const tokenMultiplier = useMemo(() => 10 ** tokenDecimals, [tokenDecimals]);
+
   // Handle trade submission
   const handleTrade = async () => {
     if (!publicKey || !selectedMarket || !rawData || !state || !amount) return;
     const slab = new PublicKey(selectedMarket);
-    const amountLamports = BigInt(Math.floor(Number(amount) * 1_000_000_000));
+    const amountLamports = BigInt(Math.floor(Number(amount) * tokenMultiplier));
 
     // Step 1: Create account if user doesn't have one
     if (myAccountIdx === null) {
@@ -97,7 +105,7 @@ export function Trade() {
     // size = collateral * leverage * 1e6 / markPrice (as e6 i128)
     const markPrice = state.markPriceE6;
     const posNotional = Number(amount) * leverage;
-    const sizeRaw = BigInt(Math.floor(posNotional * 1_000_000_000)); // in base lamports
+    const sizeRaw = BigInt(Math.floor(posNotional * tokenMultiplier));
     const size = orderSide === "long" ? sizeRaw : -sizeRaw;
 
     // Step 4: Execute trade

@@ -22,7 +22,7 @@ import * as fs from "fs";
 // CONFIG
 // ============================================================================
 
-const MARKET_FILE = "alien-market.json";
+const MARKET_FILE = process.env.MARKET_FILE || "devnet-market.json";
 if (!fs.existsSync(MARKET_FILE)) {
   console.error(`ERROR: ${MARKET_FILE} not found.`);
   process.exit(1);
@@ -30,7 +30,7 @@ if (!fs.existsSync(MARKET_FILE)) {
 
 const marketInfo = JSON.parse(fs.readFileSync(MARKET_FILE, "utf-8"));
 const SLAB = new PublicKey(marketInfo.slab);
-const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+const rpcUrl = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 const POLL_MS = parseInt(process.env.POLL_INTERVAL || "15000", 10);
 const conn = new Connection(rpcUrl, "confirmed");
 
