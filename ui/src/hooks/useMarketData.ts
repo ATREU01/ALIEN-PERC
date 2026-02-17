@@ -25,9 +25,9 @@ import {
 } from "../lib/constants";
 
 // ---------------------------------------------------------------------------
-// Debug logging — visible in browser DevTools console
+// Debug logging — only in dev mode, never in production
 // ---------------------------------------------------------------------------
-const DEBUG = true;
+const DEBUG = import.meta.env.DEV;
 function dbg(tag: string, ...args: unknown[]) {
   if (DEBUG) console.log(`[PERC:${tag}]`, ...args);
 }

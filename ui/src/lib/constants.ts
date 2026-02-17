@@ -11,10 +11,13 @@ export const MATCHER_PROGRAM_ID = new PublicKey(
   "4HcGCsyjAqnFua5ccuXyt8KRRQzKFbGTJkVChpS7Yfzy"
 );
 
-// Network — defaults to devnet where ALIEN market is deployed.
-// Set VITE_RPC_URL in .env to override (e.g. your Helius endpoint).
-export const RPC_ENDPOINT =
-  import.meta.env.VITE_RPC_URL || "https://api.devnet.solana.com";
+// Network — ALWAYS use the server-side RPC proxy in production.
+// The proxy at /api/rpc (server.js) forwards to SOLANA_RPC_URL with the API key
+// kept server-side. VITE_RPC_URL is ONLY for local dev (it gets baked into the
+// JS bundle by Vite, so never set it in production/Railway).
+export const RPC_ENDPOINT = import.meta.env.DEV
+  ? (import.meta.env.VITE_RPC_URL || "/api/rpc")
+  : "/api/rpc";
 
 // Contract Address (set via env var VITE_CONTRACT_ADDRESS after pump.fun launch)
 export const CONTRACT_ADDRESS: string =

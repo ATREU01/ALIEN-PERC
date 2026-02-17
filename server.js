@@ -194,6 +194,52 @@ async function handleChat(req, res) {
   }
 }
 
+// ─── /api/rpc proxy — keeps RPC API key server-side ─────────────────
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+
+async function handleRpc(req, res) {
+  let body;
+  try { body = await parseBody(req); }
+  catch (err) {
+    res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    return res.end(JSON.stringify({ error: err.message }));
+  }
+
+  // Rate limit RPC proxy (100 req/min per IP)
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  const rpcKey = `rpc:${ip}`;
+  const now = Date.now();
+  const entry = rateLimitMap.get(rpcKey);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(rpcKey, { windowStart: now, count: 1 });
+  } else {
+    entry.count++;
+    if (entry.count > 100) {
+      res.writeHead(429, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Rate limited" }));
+    }
+  }
+
+  try {
+    const upstream = await fetch(SOLANA_RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await upstream.text();
+    res.writeHead(upstream.status, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      ...SECURITY_HEADERS,
+    });
+    res.end(data);
+  } catch (err) {
+    console.error("[RPC PROXY]", err.message);
+    res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    res.end(JSON.stringify({ error: "RPC upstream error" }));
+  }
+}
+
 // ─── Main server ───────────────────────────────────────────────────
 createServer(async (req, res) => {
   const host = req.headers.host || "";
@@ -202,7 +248,18 @@ createServer(async (req, res) => {
     return res.end();
   }
 
+  // CORS preflight for RPC proxy
+  if (req.url === "/api/rpc" && req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    return res.end();
+  }
+
   // API routes
+  if (req.url === "/api/rpc" && req.method === "POST") return handleRpc(req, res);
   if (req.url === "/api/chat" && req.method === "POST") return handleChat(req, res);
   if (req.url === "/api/health") {
     res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });

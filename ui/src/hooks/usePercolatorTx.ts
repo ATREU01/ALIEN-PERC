@@ -78,7 +78,16 @@ export function usePercolatorTx() {
 
         return { signature };
       } catch (e: any) {
-        const errMsg = e?.message || "Transaction failed";
+        let errMsg = e?.message || "Transaction failed";
+        // Extract useful info from Solana program errors
+        if (errMsg.includes("custom program error")) {
+          const match = errMsg.match(/custom program error: (0x[0-9a-fA-F]+)/);
+          if (match) errMsg = `Program error: ${match[1]}`;
+        }
+        // Clean up wallet adapter noise
+        errMsg = errMsg
+          .replace("WalletSendTransactionError: ", "")
+          .replace("Unexpected error", "Transaction simulation failed — check console for details");
         setLastError(errMsg);
         setStatus("error");
 
