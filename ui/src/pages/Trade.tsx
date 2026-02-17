@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { PublicKey, Transaction, ComputeBudgetProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { getAssociatedTokenAddress, getAccount as getTokenAccount } from "@solana/spl-token";
+import { PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { useMarketData, useMarketDiscovery } from "../hooks/useMarketData";
 import { usePercolatorTx } from "../hooks/usePercolatorTx";
 import {
@@ -20,8 +19,6 @@ import {
   buildKeeperCrankTx,
   buildWithdrawTx,
   buildCloseAccountTx,
-  readMint,
-  readNewAccountFee,
 } from "../lib/transactions";
 import { parseAccount as parseAcctRaw, parseMarketState } from "../lib/percolator";
 
@@ -44,6 +41,7 @@ export function Trade() {
   const [leverage, setLeverage] = useState(5);
   const [amount, setAmount] = useState("");
   const [positionsTab, setPositionsTab] = useState<"positions" | "orders" | "history">("positions");
+  const [tradePhase, setTradePhase] = useState<string | null>(null);
 
   // Derived
   const userAccounts = useMemo(
@@ -78,19 +76,22 @@ export function Trade() {
 
   // Handle trade submission — ONE wallet popup for Deposit+Crank+Trade combined
   const handleTrade = async () => {
-    if (!publicKey || !selectedMarket || !rawData || !state || !amount) return;
+    if (!publicKey || !selectedMarket || !rawData || !state || !amount || tradePhase) return;
     const slab = new PublicKey(selectedMarket);
     const amountLamports = BigInt(Math.floor(Number(amount) * tokenMultiplier));
     console.log("[TRADE] Starting trade:", { side: orderSide, amount, leverage, amountLamports: amountLamports.toString(), slab: slab.toBase58() });
 
+    try {
     // Step 1: Create account if user doesn't have one (separate tx — only first time ever)
     if (myAccountIdx === null) {
+      setTradePhase("Creating account...");
       console.log("[TRADE] No user account found — creating one first (InitUser)...");
       const result = await execute(async () => ({
         tx: await buildInitUserTx(connection, publicKey, slab, rawData),
       }));
       if (result.error) {
         console.error("[TRADE] InitUser FAILED:", result.error);
+        setTradePhase(null);
         return;
       }
       console.log("[TRADE] InitUser confirmed, waiting 2s then refetching slab...");
@@ -99,9 +100,18 @@ export function Trade() {
     }
 
     // Refetch slab data ONCE to get latest state
+    setTradePhase("Fetching market data...");
     console.log("[TRADE] Fetching fresh slab data...");
-    const freshInfo = await connection.getAccountInfo(slab);
-    if (!freshInfo) { console.error("[TRADE] Slab account not found!"); return; }
+    let freshInfo;
+    try {
+      freshInfo = await connection.getAccountInfo(slab);
+    } catch (e: any) {
+      console.error("[TRADE] RPC error fetching slab:", e.message);
+      setTradePhase(null);
+      alert("RPC connection failed. Please try again.");
+      return;
+    }
+    if (!freshInfo) { console.error("[TRADE] Slab account not found!"); setTradePhase(null); return; }
     const freshData = Buffer.from(freshInfo.data);
     console.log("[TRADE] Got slab data:", freshInfo.data.length, "bytes");
 
@@ -157,6 +167,7 @@ export function Trade() {
     console.log("[TRADE] === END DIAGNOSTICS ===");
 
     // Build all 3 transactions individually, then combine instructions into ONE tx
+    setTradePhase("Building trade...");
     console.log("[TRADE] Building combined Deposit+Crank+Trade transaction...");
     await execute(async () => {
       const depositTx = await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports);
@@ -188,6 +199,11 @@ export function Trade() {
     }, refetch);
 
     console.log("[TRADE] Trade flow complete");
+    } catch (e: any) {
+      console.error("[TRADE] Unexpected error:", e.message);
+    } finally {
+      setTradePhase(null);
+    }
   };
 
   // Handle withdraw — ONE wallet popup for Crank+Withdraw combined
@@ -233,9 +249,10 @@ export function Trade() {
     }), refetch);
   };
 
-  const isBusy = status === "building" || status === "signing" || status === "confirming";
+  const isBusy = !!tradePhase || status === "building" || status === "signing" || status === "confirming";
 
   const statusLabel = (() => {
+    if (tradePhase) return tradePhase;
     switch (status) {
       case "building": return "Building tx...";
       case "signing": return "Sign in wallet...";
