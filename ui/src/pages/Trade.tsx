@@ -20,6 +20,7 @@ import {
   buildWithdrawTx,
   buildCloseAccountTx,
 } from "../lib/transactions";
+import { parseAccount as parseAcctRaw, parseMarketState } from "../lib/percolator";
 
 /** Filter out ComputeBudgetProgram instructions from a transaction */
 const COMPUTE_BUDGET_ID = ComputeBudgetProgram.programId;
@@ -109,11 +110,42 @@ export function Trade() {
     if (!lp) { console.error("[TRADE] No LP found on this market — cannot trade"); return; }
     console.log("[TRADE] Found LP:", { idx: lp.idx, owner: lp.owner.toBase58(), matcher: lp.matcherProgram.toBase58() });
 
-    // Calculate position size
+    // === DIAGNOSTIC: read raw on-chain values ===
+    const freshState = parseMarketState(freshData);
+    const userAcct = parseAcctRaw(freshData, userIdx);
+    const lpAcct = parseAcctRaw(freshData, lp.idx);
+    console.log("[TRADE] === PRE-TRADE DIAGNOSTICS ===");
+    console.log("[TRADE] Mark price e6:", freshState.markPriceE6.toString());
+    console.log("[TRADE] Initial margin bps:", freshState.initialMarginBps);
+    console.log("[TRADE] Maintenance margin bps:", freshState.maintenanceMarginBps);
+    console.log("[TRADE] Trading fee bps:", freshState.tradingFeeBps);
+    console.log("[TRADE] Is inverted:", freshState.inverted);
+    console.log("[TRADE] Is hyperp:", freshState.isHyperp);
+    console.log("[TRADE] User capital (raw):", userAcct?.capital.toString() ?? "null");
+    console.log("[TRADE] User position (raw):", userAcct?.positionSize.toString() ?? "null");
+    console.log("[TRADE] User PnL (raw):", userAcct?.pnl.toString() ?? "null");
+    console.log("[TRADE] LP capital (raw):", lpAcct?.capital.toString() ?? "null");
+    console.log("[TRADE] LP position (raw):", lpAcct?.positionSize.toString() ?? "null");
+    console.log("[TRADE] Deposit amount (raw):", amountLamports.toString());
+
+    // Calculate position size — use the formula from the engine:
+    // notional = abs(size) * mark_price / 1e6
+    // margin = notional * initial_margin_bps / 10000
     const posNotional = Number(amount) * leverage;
     const sizeRaw = BigInt(Math.floor(posNotional * tokenMultiplier));
     const size = orderSide === "long" ? sizeRaw : -sizeRaw;
-    console.log("[TRADE] Position size:", { notional: posNotional, sizeRaw: sizeRaw.toString(), signedSize: size.toString() });
+
+    // Diagnostic: expected margin
+    const absSize = sizeRaw < 0n ? -sizeRaw : sizeRaw;
+    const expectedNotional = absSize * freshState.markPriceE6 / 1_000_000n;
+    const expectedMargin = expectedNotional * BigInt(freshState.initialMarginBps) / 10_000n;
+    const expectedCapital = (userAcct?.capital ?? 0n) + amountLamports;
+    console.log("[TRADE] Size (raw):", sizeRaw.toString(), orderSide === "long" ? "(LONG)" : "(SHORT)");
+    console.log("[TRADE] Expected notional:", expectedNotional.toString(), `(${Number(expectedNotional) / 1e6} tokens)`);
+    console.log("[TRADE] Expected margin:", expectedMargin.toString(), `(${Number(expectedMargin) / 1e6} tokens)`);
+    console.log("[TRADE] Expected capital after deposit:", expectedCapital.toString(), `(${Number(expectedCapital) / 1e6} tokens)`);
+    console.log("[TRADE] Margin vs capital:", expectedMargin <= expectedCapital ? "OK — should pass" : "FAIL — margin > capital!");
+    console.log("[TRADE] === END DIAGNOSTICS ===");
 
     // Build all 3 transactions individually, then combine instructions into ONE tx
     console.log("[TRADE] Building combined Deposit+Crank+Trade transaction...");
