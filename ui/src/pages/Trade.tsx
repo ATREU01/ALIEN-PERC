@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
+import { PublicKey, Transaction, ComputeBudgetProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { getAssociatedTokenAddress, getAccount as getTokenAccount } from "@solana/spl-token";
 import { useMarketData, useMarketDiscovery } from "../hooks/useMarketData";
 import { usePercolatorTx } from "../hooks/usePercolatorTx";
 import {
@@ -19,6 +20,8 @@ import {
   buildKeeperCrankTx,
   buildWithdrawTx,
   buildCloseAccountTx,
+  readMint,
+  readNewAccountFee,
 } from "../lib/transactions";
 import { parseAccount as parseAcctRaw, parseMarketState } from "../lib/percolator";
 
@@ -128,21 +131,27 @@ export function Trade() {
     console.log("[TRADE] LP position (raw):", lpAcct?.positionSize.toString() ?? "null");
     console.log("[TRADE] Deposit amount (raw):", amountLamports.toString());
 
-    // Calculate position size — use the formula from the engine:
-    // notional = abs(size) * mark_price / 1e6
-    // margin = notional * initial_margin_bps / 10000
-    const posNotional = Number(amount) * leverage;
-    const sizeRaw = BigInt(Math.floor(posNotional * tokenMultiplier));
+    // Calculate position size using the engine formula:
+    //   on-chain: notional = abs(size) * mark_price / 1e6
+    //   on-chain: margin   = notional * initial_margin_bps / 10000
+    // So to get a desired notional of (amount * leverage) tokens, we need:
+    //   size = desiredNotional_e6 * 1e6 / markPrice_e6
+    const desiredNotionalE6 = amountLamports * BigInt(leverage);  // in token e6 units
+    const markPrice = freshState.markPriceE6;
+    if (markPrice <= 0n) { console.error("[TRADE] Mark price is zero!"); return; }
+    const sizeRaw = desiredNotionalE6 * 1_000_000n / markPrice;
     const size = orderSide === "long" ? sizeRaw : -sizeRaw;
 
-    // Diagnostic: expected margin
+    // Diagnostic: verify the margin math
     const absSize = sizeRaw < 0n ? -sizeRaw : sizeRaw;
-    const expectedNotional = absSize * freshState.markPriceE6 / 1_000_000n;
+    const expectedNotional = absSize * markPrice / 1_000_000n;
     const expectedMargin = expectedNotional * BigInt(freshState.initialMarginBps) / 10_000n;
     const expectedCapital = (userAcct?.capital ?? 0n) + amountLamports;
+    console.log("[TRADE] Desired notional (e6):", desiredNotionalE6.toString(), `(${Number(desiredNotionalE6) / 1e6} tokens)`);
+    console.log("[TRADE] Mark price (e6):", markPrice.toString());
     console.log("[TRADE] Size (raw):", sizeRaw.toString(), orderSide === "long" ? "(LONG)" : "(SHORT)");
-    console.log("[TRADE] Expected notional:", expectedNotional.toString(), `(${Number(expectedNotional) / 1e6} tokens)`);
-    console.log("[TRADE] Expected margin:", expectedMargin.toString(), `(${Number(expectedMargin) / 1e6} tokens)`);
+    console.log("[TRADE] On-chain notional:", expectedNotional.toString(), `(${Number(expectedNotional) / 1e6} tokens)`);
+    console.log("[TRADE] On-chain margin:", expectedMargin.toString(), `(${Number(expectedMargin) / 1e6} tokens)`);
     console.log("[TRADE] Expected capital after deposit:", expectedCapital.toString(), `(${Number(expectedCapital) / 1e6} tokens)`);
     console.log("[TRADE] Margin vs capital:", expectedMargin <= expectedCapital ? "OK — should pass" : "FAIL — margin > capital!");
     console.log("[TRADE] === END DIAGNOSTICS ===");
