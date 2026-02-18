@@ -5302,3 +5302,32 @@ input:focus, select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Sub-tab Explainer Banners ── */
+.xeno-tab-explainer {
+  background: linear-gradient(135deg, rgba(155, 109, 255, 0.08), rgba(0, 200, 255, 0.05));
+  border: 1px solid rgba(155, 109, 255, 0.2);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.xeno-tab-explainer h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--purple, #9b6dff);
+  margin: 0 0 0.35rem 0;
+  letter-spacing: 0.3px;
+}
+
+.xeno-tab-explainer p {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #a0a0b0);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.xeno-tab-explainer strong {
+  color: var(--text-primary, #fff);
+  font-weight: 600;
+}
