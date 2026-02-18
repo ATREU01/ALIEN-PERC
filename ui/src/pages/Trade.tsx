@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { PublicKey, Transaction, ComputeBudgetProgram } from "@solana/web3.js";
 import { useMarketData, useMarketDiscovery } from "../hooks/useMarketData";
 import { usePercolatorTx } from "../hooks/usePercolatorTx";
@@ -50,6 +50,122 @@ function isFlat(size: bigint) { return absBI(size) < DUST_THRESHOLD; }
 const DismissBtn = ({ onClick }: { onClick: () => void }) => (
   <button className="dismiss-btn" onClick={onClick}>x</button>
 );
+
+// Collapsible info panel explaining how the Percolator works
+function HowItWorksPanel({ tokenName, collateralMint }: { tokenName: string; collateralMint?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="glass-card" style={{ marginBottom: "1.5rem", padding: open ? "1.25rem" : "0.75rem 1.25rem", transition: "padding 0.2s" }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          background: "none", border: "none", cursor: "pointer", width: "100%",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          color: "var(--cyan)", fontFamily: "var(--font-display)", fontSize: "0.85rem",
+          letterSpacing: "1px", padding: 0,
+        }}
+      >
+        <span>{open ? "HIDE" : "HOW DOES TRADING WORK?"}</span>
+        <span style={{ fontSize: "1.2rem", transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+          {open ? "\u25B2" : "\u25BC"}
+        </span>
+      </button>
+      {open && (
+        <div style={{ marginTop: "1rem", fontSize: "0.82rem", lineHeight: 1.7, color: "var(--text-muted)" }}>
+          <h3 style={{ color: "var(--cyan)", fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+            What is the Alienator Percolator?
+          </h3>
+          <p style={{ marginBottom: "0.75rem" }}>
+            The <strong style={{ color: "var(--text)" }}>Percolator</strong> is an on-chain perpetual futures trading protocol built on Solana.
+            It lets you trade with <strong style={{ color: "var(--text)" }}>leverage</strong> (up to the max shown on the slider) — meaning
+            you can amplify your exposure to price movements without needing the full position value upfront.
+          </p>
+
+          <h4 style={{ color: "var(--green)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+            Getting Started
+          </h4>
+          <ol style={{ paddingLeft: "1.25rem", marginBottom: "0.75rem" }}>
+            <li style={{ marginBottom: "0.35rem" }}>
+              <strong style={{ color: "var(--text)" }}>Connect your wallet</strong> (Phantom, Solflare, etc.)
+            </li>
+            <li style={{ marginBottom: "0.35rem" }}>
+              <strong style={{ color: "var(--text)" }}>Get {tokenName} tokens</strong> — this protocol does <em>not</em> use SOL for trading.
+              You need <strong style={{ color: "var(--cyan)" }}>{tokenName}</strong> SPL tokens as collateral.
+              {collateralMint && (
+                <span style={{ display: "block", fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                  Token mint: <span
+                    className="text-cyan"
+                    style={{ fontFamily: "var(--font-mono)", cursor: "pointer" }}
+                    onClick={() => navigator.clipboard.writeText(collateralMint)}
+                    title="Click to copy"
+                  >{collateralMint.slice(0, 8)}...{collateralMint.slice(-4)}</span> (click to copy)
+                </span>
+              )}
+            </li>
+            <li style={{ marginBottom: "0.35rem" }}>
+              <strong style={{ color: "var(--text)" }}>Enter an amount</strong> of collateral and choose your leverage
+            </li>
+            <li style={{ marginBottom: "0.35rem" }}>
+              <strong style={{ color: "var(--text)" }}>Click Long or Short</strong> — the protocol deposits your collateral and opens a leveraged position in one transaction
+            </li>
+          </ol>
+
+          <h4 style={{ color: "var(--green)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+            Long vs Short
+          </h4>
+          <p style={{ marginBottom: "0.75rem" }}>
+            <strong className="text-green">Long</strong> = you profit when the price goes <strong>up</strong>.{" "}
+            <strong className="text-red">Short</strong> = you profit when the price goes <strong>down</strong>.
+            Your profit/loss (PnL) is calculated continuously based on the mark price.
+          </p>
+
+          <h4 style={{ color: "var(--green)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+            Key Terms Explained
+          </h4>
+          <div style={{ display: "grid", gap: "0.4rem", marginBottom: "0.75rem" }}>
+            <div><strong style={{ color: "var(--cyan)" }}>Mark Price</strong> — Current market price from the oracle. This determines your PnL.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Collateral / Capital</strong> — Your deposited {tokenName} tokens. This is your margin that backs the position.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Leverage</strong> — Multiplier on your position size. 5x leverage means $100 collateral controls a $500 position.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Position Size</strong> — The total value of your leveraged position (Amount x Leverage).</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Initial Margin</strong> — Minimum collateral required to open a position (e.g., 20% means max 5x leverage).</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Trading Fee</strong> — One-time fee charged when opening or closing a position.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>PnL (Profit & Loss)</strong> — Your unrealized gain or loss based on entry price vs mark price.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Entry Price</strong> — The mark price when you opened your position.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Liq. Price</strong> — Estimated price at which your position gets liquidated (losses exceed your collateral).</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Open Interest (OI)</strong> — Total value of all open positions in the market.</div>
+            <div><strong style={{ color: "var(--cyan)" }}>Insurance Fund</strong> — Protocol reserve that covers losses from liquidations.</div>
+          </div>
+
+          <h4 style={{ color: "var(--green)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+            How a Trade Works (Step by Step)
+          </h4>
+          <ol style={{ paddingLeft: "1.25rem", marginBottom: "0.75rem" }}>
+            <li style={{ marginBottom: "0.25rem" }}>Your {tokenName} tokens are deposited as collateral into the protocol</li>
+            <li style={{ marginBottom: "0.25rem" }}>The market is cranked (settled) to ensure prices are current</li>
+            <li style={{ marginBottom: "0.25rem" }}>Your leveraged position is opened against an LP (liquidity provider)</li>
+            <li style={{ marginBottom: "0.25rem" }}>All three steps happen in one Solana transaction — one wallet approval</li>
+          </ol>
+
+          <h4 style={{ color: "var(--green)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+            Closing & Withdrawing
+          </h4>
+          <p style={{ marginBottom: "0.75rem" }}>
+            Click <strong style={{ color: "var(--text)" }}>Close Position</strong> on your position card to flatten your trade (reverse it to zero).
+            Once flat, click <strong style={{ color: "var(--text)" }}>Withdraw</strong> in the positions table to move your remaining {tokenName} tokens
+            back to your wallet.
+          </p>
+
+          <div style={{ padding: "0.75rem", background: "rgba(255,107,107,0.08)", borderRadius: "6px", borderLeft: "3px solid var(--red)" }}>
+            <strong className="text-red" style={{ fontSize: "0.8rem" }}>Important:</strong>
+            <span style={{ fontSize: "0.8rem" }}> This protocol uses <strong>{tokenName} SPL tokens</strong> as collateral — NOT SOL.
+            SOL is only needed for Solana transaction fees (a fraction of a cent). You must have {tokenName} tokens in your wallet to trade.
+            On devnet, ask the admin to airdrop test tokens to your wallet.</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Trade() {
   const { execute, status, lastError, lastSignature, txHistory, confirmElapsed, clearStatus, connected, publicKey, connection } = usePercolatorTx();
@@ -392,6 +508,9 @@ export function Trade() {
         {state?.resolved && <span className="badge-burned">RESOLVED</span>}
         {state && !state.resolved && <span className="badge-live">LIVE</span>}
       </div>
+
+      {/* Educational info panel */}
+      <HowItWorksPanel tokenName={tokenName} collateralMint={state?.collateralMint} />
 
       {/* Market selector */}
       <div className="markets-grid" style={{ marginBottom: "2rem" }}>
