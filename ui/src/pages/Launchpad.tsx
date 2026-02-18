@@ -38,6 +38,7 @@ interface LeaderboardEntry {
   path: string;
   pinned: boolean;
   reward: string | null;
+  holders: number;
 }
 
 function formatMcap(n: number): string {
