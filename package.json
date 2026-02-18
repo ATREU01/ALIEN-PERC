@@ -10,7 +10,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "cd ui && npm install && npm run build",
+    "build": "npm install --production && cd ui && npm install && npm run build",
     "start": "node server.js",
     "build:cli": "tsup",
     "dev": "pnpm build:cli && node dist/index.js",

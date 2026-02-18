@@ -3,8 +3,40 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, extname, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomBytes } from "node:crypto";
-import { Keypair } from "@solana/web3.js";
+import { randomBytes, generateKeyPairSync } from "node:crypto";
+
+// ─── Zero external deps: built-in ed25519 keypair + base58 ──────
+const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+function base58Encode(buffer) {
+  const bytes = Buffer.from(buffer);
+  const digits = [0];
+  for (let i = 0; i < bytes.length; i++) {
+    let carry = bytes[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) { digits.push(carry % 58); carry = (carry / 58) | 0; }
+  }
+  let out = "";
+  for (let i = 0; i < bytes.length && bytes[i] === 0; i++) out += B58[0];
+  for (let i = digits.length - 1; i >= 0; i--) out += B58[digits[i]];
+  return out;
+}
+
+/** Generate a Solana-compatible ed25519 keypair using built-in Node crypto */
+function generateSolanaKeypair() {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  // Extract raw 32-byte keys from DER encoding
+  const pubRaw = publicKey.export({ type: "spki", format: "der" }).slice(-32);
+  const seedRaw = privateKey.export({ type: "pkcs8", format: "der" }).slice(-32);
+  // Solana secret key format: seed(32) + publicKey(32) = 64 bytes
+  const secretKey = new Uint8Array(64);
+  secretKey.set(seedRaw, 0);
+  secretKey.set(pubRaw, 32);
+  return { publicKey: base58Encode(pubRaw), secretKey };
+}
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const DIST = resolve(join(__dirname, "ui", "dist"));
@@ -357,22 +389,22 @@ createServer(async (req, res) => {
     vanityRateLimits.set(ip, Date.now());
 
     try {
-      const keypair = Keypair.generate();
+      const keypair = generateSolanaKeypair();
       const vaultId = randomBytes(32).toString("hex");
 
       vanityVault.set(vaultId, {
         secretKey: keypair.secretKey,
-        publicKey: keypair.publicKey.toBase58(),
+        publicKey: keypair.publicKey,
         createdAt: Date.now(),
         used: false,
       });
 
-      console.log(`[VAULT] Stored keypair ${keypair.publicKey.toBase58().slice(0, 8)}... with vaultId (${vanityVault.size} active)`);
+      console.log(`[VAULT] Stored keypair ${keypair.publicKey.slice(0, 8)}... with vaultId (${vanityVault.size} active)`);
 
       res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
       return res.end(JSON.stringify({
         vaultId,
-        publicKey: keypair.publicKey.toBase58(),
+        publicKey: keypair.publicKey,
         expiresIn: "30 minutes",
         network: "mainnet",
       }));
@@ -410,12 +442,10 @@ createServer(async (req, res) => {
         return res.end(JSON.stringify({ error: "Vault entry expired" }));
       }
 
-      // Reconstruct keypair and sign
-      const keypair = Keypair.fromSecretKey(vaultEntry.secretKey);
+      // Reconstruct keypair and sign — dynamic import (zero top-level deps)
       const txBytes = Buffer.from(transaction, "base64");
-
-      // Import VersionedTransaction dynamically
-      const { VersionedTransaction } = await import("@solana/web3.js");
+      const { Keypair, VersionedTransaction } = await import("@solana/web3.js");
+      const keypair = Keypair.fromSecretKey(vaultEntry.secretKey);
       const tx = VersionedTransaction.deserialize(txBytes);
       tx.sign([keypair]);
 
