@@ -84,15 +84,111 @@ const ALIENATOR_TOKEN = {
   network: "mainnet",
 };
 
-/** Fetch token market data from pump.fun (with 10s timeout) */
+// Pump.fun graduation threshold: ~85 SOL in real reserves
+const GRADUATION_THRESHOLD_SOL = 85;
+const INITIAL_VIRTUAL_SOL = 30;
+
+/** Fetch token data from pump.fun API (with proper headers) */
 async function fetchPumpData(mint) {
   try {
     const res = await fetch(`https://frontend-api.pump.fun/coins/${mint}`, {
+      headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" },
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }
+}
+
+/** Fetch token data from DexScreener (fallback, especially for graduated tokens) */
+async function fetchDexScreenerData(mint) {
+  try {
+    const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.pairs?.[0] || null;
+  } catch { return null; }
+}
+
+/**
+ * Enrich a token with real market data from pump.fun + DexScreener.
+ * Mirrors MARSMISSION tracker logic for accurate progress/graduation.
+ */
+async function enrichToken(token) {
+  const result = {
+    mint: token.mint,
+    name: token.name || "Unknown",
+    symbol: token.symbol || "TOKEN",
+    image: null,
+    mcap: 0,
+    volume: 0,
+    progress: 0,
+    graduated: false,
+    path: token.path === "raydium" ? "Raydium" : "pump.fun",
+    pinned: token.mint === ALIENATOR_TOKEN.mint,
+    createdAt: token.registeredAt || null,
+    network: "mainnet",
+    holders: 0,
+  };
+
+  let pumpOk = false;
+
+  // Source 1: Pump.fun API
+  const pump = await fetchPumpData(token.mint);
+  if (pump && pump.name) {
+    result.name = pump.name;
+    result.symbol = pump.symbol || result.symbol;
+    result.image = pump.image_uri || pump.image || null;
+    result.mcap = pump.usd_market_cap || 0;
+    result.volume = pump.volume_24h || pump.volume || 0;
+    result.graduated = pump.complete === true;
+    result.holders = pump.holder_count || 0;
+
+    // Calculate progress from real SOL reserves (like MARSMISSION tracker)
+    const realSol = (pump.real_sol_reserves || 0) / 1e9;
+    const virtualSol = (pump.virtual_sol_reserves || 0) / 1e9;
+    const calculatedRealSol = realSol > 0
+      ? realSol
+      : (virtualSol > INITIAL_VIRTUAL_SOL ? virtualSol - INITIAL_VIRTUAL_SOL : 0);
+    result.progress = Math.min((calculatedRealSol / GRADUATION_THRESHOLD_SOL) * 100, 100);
+
+    // If complete, force 100%
+    if (result.graduated) result.progress = 100;
+
+    pumpOk = true;
+    console.log(`[LEADERBOARD] pump.fun: ${result.name} ($${result.symbol}) mcap=$${result.mcap} progress=${result.progress.toFixed(1)}% graduated=${result.graduated}`);
+  }
+
+  // Source 2: DexScreener (fallback or supplement — critical for graduated tokens)
+  if (!pumpOk || !result.mcap || result.graduated) {
+    const dex = await fetchDexScreenerData(token.mint);
+    if (dex && dex.baseToken) {
+      if (!pumpOk) {
+        result.name = dex.baseToken.name || result.name;
+        result.symbol = dex.baseToken.symbol || result.symbol;
+      }
+      result.image = result.image || dex.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.mint}.png`;
+      // DexScreener fdv is often more accurate for graduated tokens
+      if (!result.mcap || (dex.fdv && dex.fdv > result.mcap)) {
+        result.mcap = dex.fdv || dex.marketCap || result.mcap;
+      }
+      result.volume = result.volume || dex.volume?.h24 || 0;
+
+      // If on Raydium/PumpSwap, it graduated
+      const dexId = (dex.dexId || "").toLowerCase();
+      if (dexId === "raydium" || dexId === "pumpswap" || dexId.includes("raydium")) {
+        result.graduated = true;
+        result.progress = 100;
+      }
+
+      console.log(`[LEADERBOARD] dexscreener: ${result.name} ($${result.symbol}) mcap=$${result.mcap} dex=${dex.dexId}`);
+    }
+  }
+
+  return result;
 }
 
 /** Build leaderboard: registered tokens + pinned ALIENATOR, sorted by mcap */
@@ -111,26 +207,13 @@ async function buildLeaderboard() {
     allMints.set(ALIENATOR_TOKEN.mint, { ...ALIENATOR_TOKEN, registeredAt: Date.now() });
   }
 
-  // Fetch pump.fun data for up to 15 tokens (rate-limited)
+  // Enrich up to 15 tokens with real on-chain data
   const entries = [...allMints.values()].slice(0, 15);
   const enriched = [];
 
   for (const token of entries) {
-    const pump = await fetchPumpData(token.mint);
-    enriched.push({
-      mint: token.mint,
-      name: pump?.name || token.name || "Unknown",
-      symbol: pump?.symbol || token.symbol || "TOKEN",
-      image: pump?.image_uri || pump?.image || null,
-      mcap: pump?.usd_market_cap || pump?.market_cap || 0,
-      volume: pump?.volume_24h || 0,
-      progress: pump?.bonding_curve_progress || pump?.progress || 0,
-      graduated: pump?.complete || pump?.graduated || false,
-      path: token.path === "raydium" ? "Raydium" : "pump.fun",
-      pinned: token.mint === ALIENATOR_TOKEN.mint,
-      createdAt: token.registeredAt || null,
-      network: "mainnet",
-    });
+    const data = await enrichToken(token);
+    enriched.push(data);
     // Brief delay to avoid rate limiting
     await new Promise((r) => setTimeout(r, 300));
   }
