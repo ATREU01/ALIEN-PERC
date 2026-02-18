@@ -263,7 +263,7 @@ export function Trade() {
 
   // Handle close position — trade in reverse direction to flatten
   const handleClosePosition = async () => {
-    if (!publicKey || !selectedMarket || !rawData || !myAccount || !myAccountIdx || tradePhase) return;
+    if (!publicKey || !selectedMarket || !rawData || !myAccount || myAccountIdx === null || tradePhase) return;
     if (myAccount.positionSize === 0n) return;
 
     const slab = new PublicKey(selectedMarket);
@@ -608,9 +608,13 @@ export function Trade() {
                 >
                   {isBusy
                     ? statusLabel
-                    : myAccountIdx === null
-                      ? `Create Account & ${orderSide === "long" ? "Long" : "Short"}`
-                      : `Open ${orderSide === "long" ? "Long" : "Short"}`}
+                    : !amount || Number(amount) <= 0
+                      ? "Enter Amount"
+                      : state.resolved
+                        ? "Market Resolved"
+                        : myAccountIdx === null
+                          ? `Create Account & ${orderSide === "long" ? "Long" : "Short"}`
+                          : `Open ${orderSide === "long" ? "Long" : "Short"}`}
                 </button>
               ) : (
                 <button className="btn-primary" style={{ width: "100%" }} disabled>
