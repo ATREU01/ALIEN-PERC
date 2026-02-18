@@ -486,28 +486,27 @@ function XenoScanner({
 
     switch (activeFilter) {
       case "alpha":
-        // Alpha Radar: any buy trade (real buy activity = signal)
+        // Alpha Radar: real buy activity (large buys > 1 SOL) or high mcap
         filtered = events.filter(
           (e) =>
-            (e.txType === "trade" && e.isBuy) ||
-            (e.txType === "migrate")
+            (e.txType === "buy" && (e.solAmount || 0) > 1) ||
+            (e.marketCapSol && e.marketCapSol > 50) ||
+            e.txType === "migrate"
         );
         break;
       case "risk":
-        // High Risk: brand-new launches and very early tokens
+        // New Launches: brand-new token creations or very early tokens
         filtered = events.filter(
           (e) =>
             e.txType === "create" ||
-            (e.txType === "trade" && e.isBuy && (e.solAmount || 0) < 0.5)
+            (e.marketCapSol && e.marketCapSol < 35)
         );
         break;
       case "safe":
-        // Early Alpha: tokens with bonding curve activity (approaching graduation)
-        // or larger buy events (established momentum)
+        // Early Alpha: tokens nearing graduation (bonding curve > 60 SOL of ~85 needed)
         filtered = events.filter(
           (e) =>
-            (e.vSolInBondingCurve && e.vSolInBondingCurve > 0) ||
-            (e.txType === "trade" && e.isBuy && (e.solAmount || 0) > 0.5) ||
+            (e.vSolInBondingCurve && e.vSolInBondingCurve > 60) ||
             e.txType === "migrate"
         );
         break;
@@ -611,7 +610,7 @@ function XenoScanner({
                 time={timeAgo(token.timestamp)}
                 type={activeFilter === "risk" ? "New Launch" : activeFilter === "safe" ? "Early Alpha" : "Alpha"}
                 uri={token.uri}
-                isHot={token.txType === "trade" && (token.solAmount || 0) > 5}
+                isHot={(token.txType === "buy" || token.txType === "sell") && (token.solAmount || 0) > 5}
                 mint={token.mint}
               />
             ))
@@ -742,7 +741,7 @@ function XenoFeed({
   const filteredEvents = events.filter((e) => {
     if (filter === "all") return true;
     if (filter === "creates") return e.txType === "create";
-    if (filter === "trades") return e.txType === "trade";
+    if (filter === "trades") return e.txType === "buy" || e.txType === "sell";
     if (filter === "migrations") return e.txType === "migrate";
     return true;
   });
@@ -752,8 +751,8 @@ function XenoFeed({
   const counts = useMemo(
     () => ({
       creates: events.filter((e) => e.txType === "create").length,
-      buys: events.filter((e) => e.txType === "trade" && e.isBuy).length,
-      sells: events.filter((e) => e.txType === "trade" && !e.isBuy).length,
+      buys: events.filter((e) => e.txType === "buy").length,
+      sells: events.filter((e) => e.txType === "sell").length,
       migrations: events.filter((e) => e.txType === "migrate").length,
     }),
     [events]
@@ -852,8 +851,9 @@ function FeedRow({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
   const getTypeInfo = () => {
     if (event.txType === "create") return { label: "NEW", cls: "xeno-badge-alpha" };
     if (event.txType === "migrate") return { label: "MIGRATE", cls: "xeno-badge-trending" };
-    if (event.txType === "trade" && event.isBuy) return { label: "BUY", cls: "xeno-badge-safe" };
-    return { label: "SELL", cls: "xeno-badge-risk" };
+    if (event.txType === "buy") return { label: "BUY", cls: "xeno-badge-safe" };
+    if (event.txType === "sell") return { label: "SELL", cls: "xeno-badge-risk" };
+    return { label: "UNKNOWN", cls: "xeno-badge-risk" };
   };
   const { label, cls } = getTypeInfo();
 
@@ -899,9 +899,9 @@ function XenoAnalytics({
   solPrice: number;
 }) {
   const totalVolume = events.reduce((acc, e) => acc + (e.solAmount || 0), 0);
-  const buyVolume = events.filter((e) => e.isBuy).reduce((acc, e) => acc + (e.solAmount || 0), 0);
+  const buyVolume = events.filter((e) => e.txType === "buy").reduce((acc, e) => acc + (e.solAmount || 0), 0);
   const sellVolume = events
-    .filter((e) => !e.isBuy && e.txType === "trade")
+    .filter((e) => e.txType === "sell")
     .reduce((acc, e) => acc + (e.solAmount || 0), 0);
   const uniqueTraders = new Set(events.map((e) => e.traderPublicKey)).size;
   const uniqueTokens = new Set(events.map((e) => e.mint)).size;
@@ -923,8 +923,8 @@ function XenoAnalytics({
 
   // Tx distribution
   const txTypeData = [
-    { name: "Buys", value: events.filter((e) => e.isBuy).length, color: "#00d68f" },
-    { name: "Sells", value: events.filter((e) => !e.isBuy && e.txType === "trade").length, color: "#ef4466" },
+    { name: "Buys", value: events.filter((e) => e.txType === "buy").length, color: "#00d68f" },
+    { name: "Sells", value: events.filter((e) => e.txType === "sell").length, color: "#ef4466" },
     { name: "Creates", value: creates, color: "#00c8ff" },
     { name: "Migrations", value: migrations, color: "#9b6dff" },
   ];
@@ -1112,12 +1112,12 @@ function XenoTrades({
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
-  const trades = events.filter((e) => e.txType === "trade");
+  const trades = events.filter((e) => e.txType === "buy" || e.txType === "sell");
 
   const filteredTrades = useMemo(() => {
     let result = trades.filter((t) => {
-      if (!showBuys && t.isBuy) return false;
-      if (!showSells && !t.isBuy) return false;
+      if (!showBuys && t.txType === "buy") return false;
+      if (!showSells && t.txType === "sell") return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         return (
@@ -1142,8 +1142,8 @@ function XenoTrades({
     return result;
   }, [trades, showBuys, showSells, searchQuery, sortField, sortOrder]);
 
-  const totalBuyVol = trades.filter((t) => t.isBuy).reduce((a, t) => a + (t.solAmount || 0), 0);
-  const totalSellVol = trades.filter((t) => !t.isBuy).reduce((a, t) => a + (t.solAmount || 0), 0);
+  const totalBuyVol = trades.filter((t) => t.txType === "buy").reduce((a, t) => a + (t.solAmount || 0), 0);
+  const totalSellVol = trades.filter((t) => t.txType === "sell").reduce((a, t) => a + (t.solAmount || 0), 0);
 
   const copyHash = (sig: string) => {
     navigator.clipboard.writeText(sig);
@@ -1240,8 +1240,8 @@ function XenoTrades({
                 filteredTrades.slice(0, 50).map((trade, i) => (
                   <tr key={`${trade.signature}-${i}`}>
                     <td>
-                      <span className={`xeno-type-badge ${trade.isBuy ? "xeno-badge-safe" : "xeno-badge-risk"}`}>
-                        {trade.isBuy ? "BUY" : "SELL"}
+                      <span className={`xeno-type-badge ${trade.txType === "buy" ? "xeno-badge-safe" : "xeno-badge-risk"}`}>
+                        {trade.txType === "buy" ? "BUY" : "SELL"}
                       </span>
                     </td>
                     <td>
@@ -1332,10 +1332,11 @@ function FeedItem({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
 
   const typeConfig: Record<string, { color: string; label: string }> = {
     create: { color: "var(--cyan)", label: "CREATE" },
-    trade: { color: "var(--alien-green)", label: "TRADE" },
+    buy: { color: "var(--green)", label: "BUY" },
+    sell: { color: "var(--red)", label: "SELL" },
     migrate: { color: "var(--purple)", label: "MIGRATE" },
   };
-  const cfg = typeConfig[event.txType] || typeConfig.trade;
+  const cfg = typeConfig[event.txType] || typeConfig.buy;
 
   const copyMint = () => {
     if (event.mint) {
