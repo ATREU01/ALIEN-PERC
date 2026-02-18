@@ -608,9 +608,13 @@ export function Trade() {
                 >
                   {isBusy
                     ? statusLabel
-                    : myAccountIdx === null
-                      ? `Create Account & ${orderSide === "long" ? "Long" : "Short"}`
-                      : `Open ${orderSide === "long" ? "Long" : "Short"}`}
+                    : !amount || Number(amount) <= 0
+                      ? "Enter Amount"
+                      : state.resolved
+                        ? "Market Resolved"
+                        : myAccountIdx === null
+                          ? `Create Account & ${orderSide === "long" ? "Long" : "Short"}`
+                          : `Open ${orderSide === "long" ? "Long" : "Short"}`}
                 </button>
               ) : (
                 <button className="btn-primary" style={{ width: "100%" }} disabled>
