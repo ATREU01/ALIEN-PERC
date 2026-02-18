@@ -40,6 +40,12 @@ function combineTxs(txs: Transaction[], cuLimit: number): Transaction {
 
 type OrderSide = "long" | "short";
 
+// Position sizes below this threshold (raw E6 units) are treated as flat.
+// 5000 = 0.005 which rounds to "0.00" in display — prevents phantom LONG/SHORT.
+const DUST_THRESHOLD = 5_000n;
+function absBI(n: bigint) { return n < 0n ? -n : n; }
+function isFlat(size: bigint) { return absBI(size) < DUST_THRESHOLD; }
+
 // Dismiss button for feedback cards
 const DismissBtn = ({ onClick }: { onClick: () => void }) => (
   <button className="dismiss-btn" onClick={onClick}>x</button>
@@ -214,7 +220,7 @@ export function Trade() {
 
   const handleClosePosition = async () => {
     if (!publicKey || !selectedMarket || !rawData || !myAccount || myAccountIdx === null || tradePhase) return;
-    if (myAccount.positionSize === 0n) return;
+    if (isFlat(myAccount.positionSize)) return;
 
     const slab = new PublicKey(selectedMarket);
 
@@ -228,7 +234,7 @@ export function Trade() {
 
       // Use FRESH on-chain position — not stale React state
       const freshAcct = parseAcctRaw(freshData, userIdx);
-      if (!freshAcct || freshAcct.positionSize === 0n) {
+      if (!freshAcct || isFlat(freshAcct.positionSize)) {
         await refetch();
         return;
       }
@@ -296,8 +302,8 @@ export function Trade() {
   // ─── Liq price estimate ───────────────────────────────────────────────────
 
   const liqPrice = useMemo(() => {
-    if (!myAccount || !state || myAccount.positionSize === 0n || myAccount.capital <= 0n) return null;
-    const absSize = myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize;
+    if (!myAccount || !state || isFlat(myAccount.positionSize) || myAccount.capital <= 0n) return null;
+    const absSize = absBI(myAccount.positionSize);
     if (absSize === 0n) return null;
     const capitalPerUnit = myAccount.capital * 1_000_000n / absSize;
     const maintReserve = myAccount.entryPrice * BigInt(state.maintenanceMarginBps) / 10_000n;
@@ -440,52 +446,65 @@ export function Trade() {
               </div>
 
               {/* My position */}
-              {myAccount && (
-                <div className={`position-card ${myAccount.positionSize > 0n ? "position-long" : myAccount.positionSize < 0n ? "position-short" : ""}`}>
-                  <div className="flex-between" style={{ marginBottom: "0.5rem" }}>
-                    <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                      {myAccount.positionSize > 0n ? <span className="text-green">LONG</span>
-                        : myAccount.positionSize < 0n ? <span className="text-red">SHORT</span>
-                        : <span className="text-muted">NO POSITION</span>}
-                    </span>
-                    <span className="text-muted" style={{ fontSize: "0.7rem" }}>Account #{myAccount.index}</span>
-                  </div>
-                  <div className="flex-between"><span className="text-muted">Capital</span><span className="text-cyan">{formatBigintE6(myAccount.capital)}</span></div>
-                  {myAccount.positionSize !== 0n && (
-                    <>
-                      <div className="flex-between">
-                        <span className="text-muted">Size</span>
-                        <span className={myAccount.positionSize > 0n ? "text-green" : "text-red"}>
-                          {formatBigintE6(myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize)}
-                        </span>
-                      </div>
-                      <div className="flex-between"><span className="text-muted">Entry Price</span><span>${formatPriceE6(myAccount.entryPrice)}</span></div>
-                      <div className="flex-between"><span className="text-muted">Mark Price</span><span className="text-cyan">${formatPriceE6(state.markPriceE6)}</span></div>
-                      <div className="flex-between">
-                        <span className="text-muted">PnL</span>
-                        <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"} style={{ fontWeight: 600 }}>
-                          {myAccount.pnl >= 0n ? "+" : ""}{formatBigintE6(myAccount.pnl)}
-                        </span>
-                      </div>
-                      {liqPrice && (
-                        <div className="flex-between">
-                          <span className="text-muted">Est. Liq. Price</span>
-                          <span className="text-red" style={{ fontSize: "0.8rem" }}>${formatPriceE6(liqPrice)}</span>
-                        </div>
-                      )}
-                      <button className="btn-close-position" disabled={isBusy} onClick={handleClosePosition}>
-                        {isBusy ? statusLabel : "Close Position"}
-                      </button>
-                    </>
-                  )}
-                  {myAccount.positionSize === 0n && myAccount.capital > 0n && (
-                    <div className="flex-between">
-                      <span className="text-muted">PnL</span>
-                      <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"}>{formatBigintE6(myAccount.pnl)}</span>
+              {myAccount && (() => {
+                const flat = isFlat(myAccount.positionSize);
+                const isLong = !flat && myAccount.positionSize > 0n;
+                const isShort = !flat && myAccount.positionSize < 0n;
+                return (
+                  <div className={`position-card ${isLong ? "position-long" : isShort ? "position-short" : ""}`}>
+                    <div className="flex-between" style={{ marginBottom: "0.5rem" }}>
+                      <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                        {isLong ? <span className="text-green">LONG</span>
+                          : isShort ? <span className="text-red">SHORT</span>
+                          : <span className="text-muted">FLAT — No Open Position</span>}
+                      </span>
+                      <span className="text-muted" style={{ fontSize: "0.7rem" }}>Account #{myAccount.index}</span>
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="flex-between"><span className="text-muted">Capital</span><span className="text-cyan">{formatBigintE6(myAccount.capital)}</span></div>
+                    {!flat && (
+                      <>
+                        <div className="flex-between">
+                          <span className="text-muted">Size</span>
+                          <span className={isLong ? "text-green" : "text-red"}>
+                            {formatBigintE6(absBI(myAccount.positionSize))}
+                          </span>
+                        </div>
+                        <div className="flex-between"><span className="text-muted">Entry Price</span><span>${formatPriceE6(myAccount.entryPrice)}</span></div>
+                        <div className="flex-between"><span className="text-muted">Mark Price</span><span className="text-cyan">${formatPriceE6(state.markPriceE6)}</span></div>
+                        <div className="flex-between">
+                          <span className="text-muted">PnL</span>
+                          <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"} style={{ fontWeight: 600 }}>
+                            {myAccount.pnl >= 0n ? "+" : ""}{formatBigintE6(myAccount.pnl)}
+                          </span>
+                        </div>
+                        {liqPrice && (
+                          <div className="flex-between">
+                            <span className="text-muted">Est. Liq. Price</span>
+                            <span className="text-red" style={{ fontSize: "0.8rem" }}>${formatPriceE6(liqPrice)}</span>
+                          </div>
+                        )}
+                        <button className="btn-close-position" disabled={isBusy} onClick={handleClosePosition}>
+                          {isBusy ? statusLabel : "Close Position"}
+                        </button>
+                      </>
+                    )}
+                    {flat && myAccount.capital > 0n && (
+                      <>
+                        <div className="flex-between">
+                          <span className="text-muted">Status</span>
+                          <span className="text-cyan">Ready to trade</span>
+                        </div>
+                        {myAccount.pnl !== 0n && (
+                          <div className="flex-between">
+                            <span className="text-muted">Realized PnL</span>
+                            <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"}>{myAccount.pnl >= 0n ? "+" : ""}{formatBigintE6(myAccount.pnl)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Trade button */}
               {connected ? (
@@ -582,12 +601,13 @@ export function Trade() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Index</th>
+                      <th>#</th>
                       <th>Type</th>
                       <th>Owner</th>
                       <th>Capital</th>
                       <th>PnL</th>
-                      <th>Position</th>
+                      <th>Direction</th>
+                      <th>Size</th>
                       <th>Entry</th>
                       {connected && <th>Actions</th>}
                     </tr>
@@ -595,33 +615,41 @@ export function Trade() {
                   <tbody>
                     {visibleAccounts.length === 0 ? (
                       <tr>
-                        <td colSpan={connected ? 8 : 7} style={{ textAlign: "center", padding: "2rem" }}>
+                        <td colSpan={connected ? 9 : 8} style={{ textAlign: "center", padding: "2rem" }}>
                           <span className="text-muted">{loading ? "Loading accounts..." : "No accounts found"}</span>
                         </td>
                       </tr>
                     ) : (
                       visibleAccounts.map((acct) => {
                         const isOwner = publicKey && acct.owner === publicKey.toBase58();
+                        const flat = isFlat(acct.positionSize);
+                        const isLong = !flat && acct.positionSize > 0n;
+                        const isShort = !flat && acct.positionSize < 0n;
                         return (
-                          <tr key={acct.index}>
-                            <td>#{acct.index}</td>
+                          <tr key={acct.index} className={isOwner ? "row-own" : ""}>
+                            <td>{acct.index}</td>
                             <td><span className={acct.kind === "lp" ? "text-purple" : "text-cyan"}>{acct.kind.toUpperCase()}</span></td>
                             <td>{isOwner ? <span className="text-green">YOU</span> : truncateAddress(acct.owner)}</td>
                             <td>{formatBigintE6(acct.capital)}</td>
                             <td><span className={acct.pnl >= 0n ? "text-green" : "text-red"}>{formatBigintE6(acct.pnl)}</span></td>
                             <td>
-                              <span className={acct.positionSize > 0n ? "text-green" : acct.positionSize < 0n ? "text-red" : ""}>
-                                {formatBigintE6(acct.positionSize)}
+                              {isLong ? <span className="text-green">LONG</span>
+                                : isShort ? <span className="text-red">SHORT</span>
+                                : <span className="text-muted">FLAT</span>}
+                            </td>
+                            <td>
+                              <span className={isLong ? "text-green" : isShort ? "text-red" : "text-muted"}>
+                                {flat ? "—" : formatBigintE6(absBI(acct.positionSize))}
                               </span>
                             </td>
-                            <td>${formatPriceE6(acct.entryPrice)}</td>
+                            <td>{flat ? <span className="text-muted">—</span> : `$${formatPriceE6(acct.entryPrice)}`}</td>
                             {connected && (
                               <td>
-                                {isOwner && acct.kind === "user" && acct.capital > 0n && acct.positionSize === 0n && (
+                                {isOwner && acct.kind === "user" && acct.capital > 0n && flat && (
                                   <button className="btn-table-action" disabled={isBusy} onClick={() => handleWithdraw(acct.index, acct.capital)}>Withdraw</button>
                                 )}
-                                {isOwner && acct.kind === "user" && acct.capital === 0n && acct.positionSize === 0n && acct.pnl === 0n && (
-                                  <button className="btn-table-action" disabled={isBusy} onClick={() => handleClose(acct.index)}>Close</button>
+                                {isOwner && acct.kind === "user" && acct.capital === 0n && flat && acct.pnl === 0n && (
+                                  <button className="btn-table-action" disabled={isBusy} onClick={() => handleClose(acct.index)}>Close Acct</button>
                                 )}
                               </td>
                             )}

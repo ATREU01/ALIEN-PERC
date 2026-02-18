@@ -1432,6 +1432,15 @@ input:focus, select:focus {
 .data-table .positive, .data-table .text-green { color: var(--green); }
 .data-table .negative, .data-table .text-red { color: var(--red); }
 
+/* Highlight own account rows */
+.data-table tr.row-own td {
+  background: rgba(0, 230, 138, 0.04);
+  border-bottom-color: rgba(0, 230, 138, 0.1);
+}
+.data-table tr.row-own:hover td {
+  background: rgba(0, 230, 138, 0.08);
+}
+
 /* ============================================================================
    VAULT CARDS (Earn page)
    ============================================================================ */

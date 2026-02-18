@@ -258,6 +258,14 @@ createServer(async (req, res) => {
     return res.end();
   }
 
+  // Request logging for API routes
+  const isApi = req.url?.startsWith("/api/");
+  if (isApi) {
+    const ts = new Date().toISOString().slice(11, 19);
+    const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "?";
+    console.log(`[${ts}] ${req.method} ${req.url} from ${ip}`);
+  }
+
   // API routes
   if (req.url === "/api/rpc" && req.method === "POST") return handleRpc(req, res);
   if (req.url === "/api/chat" && req.method === "POST") return handleChat(req, res);
@@ -292,6 +300,19 @@ createServer(async (req, res) => {
     }
   }
 }).listen(PORT, "0.0.0.0", () => {
-  console.log(`ALIENATOR running on port ${PORT}`);
-  console.log(`AI: ${process.env.ANTHROPIC_API_KEY ? "ONLINE" : "OFFLINE (set ANTHROPIC_API_KEY)"}`);
+  const ts = new Date().toISOString();
+  console.log("──────────────────────────────────────────────");
+  console.log("  ALIENATOR Protocol Server");
+  console.log("──────────────────────────────────────────────");
+  console.log(`  Started:  ${ts}`);
+  console.log(`  Port:     ${PORT}`);
+  console.log(`  Static:   ${DIST}`);
+  console.log(`  RPC:      ${SOLANA_RPC_URL}`);
+  console.log(`  AI:       ${process.env.ANTHROPIC_API_KEY ? "ONLINE" : "OFFLINE (set ANTHROPIC_API_KEY)"}`);
+  console.log("──────────────────────────────────────────────");
+  console.log(`  State:    All on-chain (Solana slab accounts)`);
+  console.log(`            No local database — protocol state`);
+  console.log(`            persists on Solana across restarts.`);
+  console.log("──────────────────────────────────────────────");
+  console.log("[SERVER] Ready — accepting connections");
 });
