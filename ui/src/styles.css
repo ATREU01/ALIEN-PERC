@@ -3666,6 +3666,289 @@ input:focus, select:focus {
   gap: 12px;
 }
 
+/* ============================================================================
+   LEADERBOARD
+   ============================================================================ */
+.leaderboard-section {
+  margin-bottom: 2.5rem;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+
+.leaderboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.leaderboard-title {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.leaderboard-loading,
+.leaderboard-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Table layout */
+.leaderboard-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.leaderboard-table-head {
+  display: grid;
+  grid-template-columns: 48px 1fr 110px 140px 90px 140px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 48px 1fr 110px 140px 90px 140px;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid rgba(0, 230, 138, 0.03);
+  transition: background 0.15s;
+}
+
+.leaderboard-row:hover {
+  background: var(--bg-hover);
+}
+
+.leaderboard-row:last-child {
+  border-bottom: none;
+}
+
+.leaderboard-row-pinned {
+  background: rgba(0, 200, 255, 0.03);
+  border-left: 3px solid var(--cyan);
+}
+
+.leaderboard-row-pinned:hover {
+  background: rgba(0, 200, 255, 0.06);
+}
+
+/* Rank badges */
+.lb-rank {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.lb-rank-1 {
+  background: linear-gradient(135deg, #FFE699 0%, #FFD966 25%, #CC9900 50%, #FFD966 75%, #FFE699 100%);
+  background-size: 200% 200%;
+  color: #1a1a1a;
+  box-shadow: 0 0 16px rgba(255, 217, 102, 0.35);
+  animation: shimmer 3s linear infinite;
+}
+
+.lb-rank-2 {
+  background: linear-gradient(135deg, #F0F0F0 0%, #C8C8C8 30%, #A0A0A0 50%, #C8C8C8 70%, #F0F0F0 100%);
+  color: #1a1a1a;
+  box-shadow: 0 0 12px rgba(200, 200, 200, 0.25);
+}
+
+.lb-rank-3 {
+  background: linear-gradient(135deg, #DDA15E 0%, #BC6C25 40%, #8B4513 50%, #BC6C25 60%, #DDA15E 100%);
+  color: #1a1a1a;
+  box-shadow: 0 0 12px rgba(188, 108, 37, 0.25);
+}
+
+/* Token info cell */
+.lb-token-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lb-token-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--cyan);
+  flex-shrink: 0;
+  overflow: hidden;
+  background-position: center;
+}
+
+.lb-token-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lb-token-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-pin-badge {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(0, 200, 255, 0.12);
+  border: 1px solid rgba(0, 200, 255, 0.25);
+  color: var(--cyan);
+  white-space: nowrap;
+}
+
+.lb-token-symbol {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Market cap */
+.lb-mcap {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--alien-green);
+}
+
+/* Progress bar */
+.lb-progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lb-progress-bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.lb-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--alien-green));
+  transition: width 0.4s;
+}
+
+.lb-progress-pct {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Status badges */
+.lb-status {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+.lb-graduated {
+  background: rgba(0, 230, 138, 0.1);
+  color: var(--alien-green);
+  border: 1px solid rgba(0, 230, 138, 0.2);
+}
+
+.lb-bonding {
+  background: rgba(0, 200, 255, 0.08);
+  color: var(--cyan);
+  border: 1px solid rgba(0, 200, 255, 0.15);
+}
+
+/* Links */
+.lb-links {
+  display: flex;
+  gap: 8px;
+}
+
+.lb-link {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.lb-link:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* Warnings section */
+.leaderboard-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.leaderboard-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(240, 192, 32, 0.03);
+  border: 1px solid rgba(240, 192, 32, 0.08);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.leaderboard-warning strong {
+  color: var(--yellow);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .launchpad-stats-bar {
@@ -3677,5 +3960,17 @@ input:focus, select:focus {
   }
   .launchpad-socials-grid {
     grid-template-columns: 1fr;
+  }
+  .leaderboard-table-head,
+  .leaderboard-row {
+    grid-template-columns: 36px 1fr 80px;
+  }
+  .lb-col-progress,
+  .lb-col-status,
+  .lb-col-links {
+    display: none;
+  }
+  .leaderboard-section {
+    padding: 1rem;
   }
 }

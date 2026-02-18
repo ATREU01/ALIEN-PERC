@@ -25,6 +25,28 @@ interface LaunchedToken {
   registeredAt: number;
 }
 
+interface LeaderboardEntry {
+  rank: number;
+  mint: string;
+  name: string;
+  symbol: string;
+  image: string | null;
+  mcap: number;
+  volume: number;
+  progress: number;
+  graduated: boolean;
+  path: string;
+  pinned: boolean;
+  reward: string | null;
+}
+
+function formatMcap(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  if (n > 0) return `$${n.toFixed(0)}`;
+  return "$0";
+}
+
 const STRATEGIES: Record<Strategy, { label: string; desc: string; allocations: Record<string, number> }> = {
   balanced: {
     label: "Balanced",
@@ -88,12 +110,23 @@ export function Launchpad() {
   // Stats
   const [stats, setStats] = useState<{ totalTokens: number } | null>(null);
 
-  // Load stats on mount
+  // Leaderboard
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
+
+  // Load stats + leaderboard on mount
   useEffect(() => {
     fetch("/api/launchpad/stats")
       .then((r) => r.json())
       .then(setStats)
       .catch(() => {});
+
+    setLoadingLeaderboard(true);
+    fetch("/api/launchpad/leaderboard")
+      .then((r) => r.json())
+      .then((data) => setLeaderboard(data.leaderboard || []))
+      .catch(() => {})
+      .finally(() => setLoadingLeaderboard(false));
   }, []);
 
   // Load user's tokens when wallet connects
@@ -282,6 +315,131 @@ export function Launchpad() {
           <span className="launchpad-stat-label">Creator Fee</span>
         </div>
       </div>
+
+      {/* ═══ LEADERBOARD ═══ */}
+      <section className="leaderboard-section">
+        <div className="leaderboard-header">
+          <h2 className="leaderboard-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ marginRight: 8 }}>
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="var(--cyan)" opacity="0.8" />
+            </svg>
+            Leaderboard
+          </h2>
+          <span className="badge-mainnet" style={{ fontSize: "0.7rem" }}>LIVE</span>
+        </div>
+
+        {loadingLeaderboard ? (
+          <div className="leaderboard-loading">Loading leaderboard...</div>
+        ) : leaderboard.length === 0 ? (
+          <div className="leaderboard-empty">
+            <span>No tokens yet. Launch the first one above.</span>
+          </div>
+        ) : (
+          <div className="leaderboard-table">
+            <div className="leaderboard-table-head">
+              <span className="lb-col-rank">#</span>
+              <span className="lb-col-token">Token</span>
+              <span className="lb-col-mcap">Market Cap</span>
+              <span className="lb-col-progress">Progress</span>
+              <span className="lb-col-status">Status</span>
+              <span className="lb-col-links">Links</span>
+            </div>
+            {leaderboard.map((entry) => (
+              <div
+                key={entry.mint}
+                className={`leaderboard-row ${entry.pinned ? "leaderboard-row-pinned" : ""} ${entry.rank <= 3 ? "leaderboard-row-top" : ""}`}
+              >
+                <span className={`lb-col-rank lb-rank lb-rank-${entry.rank <= 3 ? entry.rank : "default"}`}>
+                  {entry.rank}
+                </span>
+                <div className="lb-col-token lb-token-info">
+                  <div
+                    className="lb-token-avatar"
+                    style={entry.image ? { backgroundImage: `url(${entry.image})`, backgroundSize: "cover" } : {}}
+                  >
+                    {!entry.image && (entry.symbol?.charAt(0) || "?")}
+                  </div>
+                  <div className="lb-token-text">
+                    <span className="lb-token-name">
+                      {entry.name}
+                      {entry.pinned && <span className="lb-pin-badge">FEATURED</span>}
+                    </span>
+                    <span className="lb-token-symbol">${entry.symbol}</span>
+                  </div>
+                </div>
+                <span className="lb-col-mcap lb-mcap">{formatMcap(entry.mcap)}</span>
+                <div className="lb-col-progress lb-progress-cell">
+                  <div className="lb-progress-bar">
+                    <div
+                      className="lb-progress-fill"
+                      style={{ width: `${Math.min(100, entry.progress || 0)}%` }}
+                    />
+                  </div>
+                  <span className="lb-progress-pct">{(entry.progress || 0).toFixed(0)}%</span>
+                </div>
+                <span className={`lb-col-status lb-status ${entry.graduated ? "lb-graduated" : "lb-bonding"}`}>
+                  {entry.graduated ? "Graduated" : "Bonding"}
+                </span>
+                <div className="lb-col-links lb-links">
+                  <a
+                    href={`https://pump.fun/coin/${entry.mint}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="lb-link text-cyan"
+                  >
+                    pump.fun
+                  </a>
+                  <a
+                    href={`https://dexscreener.com/solana/${entry.mint}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="lb-link text-purple"
+                  >
+                    DexScreener
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Warnings */}
+        <div className="leaderboard-warnings">
+          <div className="leaderboard-warning">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+              <path d="M12 2L2 22h20L12 2z" stroke="var(--yellow)" strokeWidth="2" fill="none" />
+              <path d="M12 10v4M12 18h.01" stroke="var(--yellow)" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span>
+              <strong>Risk Warning:</strong> Tokens launched on pump.fun are highly speculative. Market cap and
+              volume data may be delayed. Always DYOR (Do Your Own Research) before trading. Past performance
+              does not guarantee future results.
+            </span>
+          </div>
+          <div className="leaderboard-warning">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+              <circle cx="12" cy="12" r="10" stroke="var(--cyan)" strokeWidth="2" fill="none" />
+              <path d="M12 8v4M12 16h.01" stroke="var(--cyan)" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span>
+              <strong>Fee Disclosure:</strong> The Alientor Protocol collects 1% of creator fees for protocol
+              treasury operations including buyback, burns, and development. All transactions occur on
+              Solana mainnet and are irreversible.
+            </span>
+          </div>
+          <div className="leaderboard-warning">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+              <rect x="3" y="11" width="18" height="10" rx="2" stroke="var(--alien-green)" strokeWidth="2" fill="none" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="var(--alien-green)" strokeWidth="2" fill="none" />
+            </svg>
+            <span>
+              <strong>Not Financial Advice:</strong> The Alienator Protocol and its launchpad are experimental
+              software. Tokens have no intrinsic value. You may lose your entire investment. Only invest
+              what you can afford to lose.
+            </span>
+          </div>
+        </div>
+      </section>
 
       {/* Progress Steps */}
       <div className="register-steps" style={{ marginBottom: "2rem" }}>
