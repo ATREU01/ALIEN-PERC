@@ -3083,6 +3083,26 @@ input:focus, select:focus {
   font-size: 0.85rem;
 }
 
+/* Wallet token balance bar */
+.token-balance-bar {
+  background: rgba(0, 200, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.token-balance-bar.token-balance-empty {
+  border-color: rgba(239, 68, 102, 0.2);
+  background: rgba(239, 68, 102, 0.03);
+}
+
+.token-get-card {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
 /* Active position card */
 .position-card {
   background: rgba(0, 200, 255, 0.04);
