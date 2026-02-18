@@ -229,7 +229,7 @@ export function Xenoscope() {
               </svg>
             </div>
             <h3>Alpha Scanner</h3>
-            <p>Three intelligence strategies — Alpha Radar (momentum), High Risk (new launches), and Recommended (near graduation). Filter signals, not noise.</p>
+            <p>Three intelligence strategies — Alpha Radar (momentum), New Launches (freshest tokens), and Early Alpha (near graduation). Filter signals, not noise.</p>
           </div>
           <div className="xeno-feature-card">
             <div className="xeno-feature-icon" style={{ background: "rgba(0, 214, 143, 0.1)" }}>
@@ -502,7 +502,7 @@ function XenoScanner({
         );
         break;
       case "safe":
-        // Recommended: tokens with bonding curve activity (approaching graduation)
+        // Early Alpha: tokens with bonding curve activity (approaching graduation)
         // or larger buy events (established momentum)
         filtered = events.filter(
           (e) =>
@@ -535,7 +535,7 @@ function XenoScanner({
   }, [events, activeFilter, searchQuery]);
 
   const filterLabel = (f: ScanFilter) =>
-    f === "alpha" ? "Alpha Radar" : f === "risk" ? "High Risk" : "Recommended";
+    f === "alpha" ? "Alpha Radar" : f === "risk" ? "New Launches" : "Early Alpha";
 
   const filterColor = (f: ScanFilter) =>
     f === "alpha" ? "var(--cyan)" : f === "risk" ? "var(--red)" : "var(--green)";
@@ -545,7 +545,7 @@ function XenoScanner({
       {/* THE POINT */}
       <div className="xeno-tab-explainer">
         <h3>Find Signals in the Noise</h3>
-        <p>Thousands of tokens launch every hour on Pump.fun. The Scanner filters them into three strategies: <strong>Alpha Radar</strong> finds tokens with real buy activity, <strong>High Risk</strong> catches brand-new launches before anyone else, and <strong>Recommended</strong> highlights tokens approaching bonding curve graduation. Copy any CA with one click.</p>
+        <p>Thousands of tokens launch every hour on Pump.fun. The Scanner filters them into three strategies: <strong>Alpha Radar</strong> finds tokens with real buy activity, <strong>New Launches</strong> catches brand-new tokens before anyone else, and <strong>Early Alpha</strong> highlights tokens approaching bonding curve graduation. Copy any CA with one click.</p>
       </div>
 
       {/* Header */}
@@ -609,7 +609,7 @@ function XenoScanner({
                 price={token.solAmount ? formatCompactUSD(token.solAmount * solPrice) : "---"}
                 mcap={token.marketCapSol ? formatCompactUSD(token.marketCapSol * solPrice) : "---"}
                 time={timeAgo(token.timestamp)}
-                type={activeFilter === "risk" ? "Degen Play" : activeFilter === "safe" ? "Safe Bet" : "Alpha"}
+                type={activeFilter === "risk" ? "New Launch" : activeFilter === "safe" ? "Early Alpha" : "Alpha"}
                 uri={token.uri}
                 isHot={token.txType === "trade" && (token.solAmount || 0) > 5}
                 mint={token.mint}
@@ -673,12 +673,12 @@ function ScannerCard({
   };
 
   const typeClass =
-    type === "Degen Play"
-      ? "xeno-badge-risk"
+    type === "New Launch"
+      ? "xeno-badge-trending"
       : type === "Alpha"
         ? "xeno-badge-alpha"
-        : type === "Safe Bet"
-          ? "xeno-badge-safe"
+        : type === "Early Alpha"
+          ? "xeno-badge-alpha"
           : "xeno-badge-trending";
 
   const pumpUrl = mint ? `https://pump.fun/${mint}` : undefined;
