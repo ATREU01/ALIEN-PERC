@@ -378,6 +378,7 @@ async function handleChat(req, res) {
 
 // ─── /api/rpc proxy — keeps RPC API key server-side ─────────────────
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+const SOLANA_MAINNET_RPC_URL = process.env.SOLANA_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
 
 async function handleRpc(req, res) {
   let body;
@@ -422,6 +423,49 @@ async function handleRpc(req, res) {
   }
 }
 
+// ─── /api/rpc-mainnet proxy — mainnet RPC with API key server-side ──
+async function handleRpcMainnet(req, res) {
+  let body;
+  try { body = await parseBody(req); }
+  catch (err) {
+    res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    return res.end(JSON.stringify({ error: err.message }));
+  }
+
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket.remoteAddress || "unknown";
+  const rpcKey = `rpc-mn:${ip}`;
+  const now = Date.now();
+  const entry = rateLimitMap.get(rpcKey);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(rpcKey, { windowStart: now, count: 1 });
+  } else {
+    entry.count++;
+    if (entry.count > 100) {
+      res.writeHead(429, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Rate limited" }));
+    }
+  }
+
+  try {
+    const upstream = await fetch(SOLANA_MAINNET_RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await upstream.text();
+    res.writeHead(upstream.status, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      ...SECURITY_HEADERS,
+    });
+    res.end(data);
+  } catch (err) {
+    console.error("[RPC MAINNET PROXY]", err.message);
+    res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    res.end(JSON.stringify({ error: "Mainnet RPC upstream error" }));
+  }
+}
+
 // ─── Main server ───────────────────────────────────────────────────
 createServer(async (req, res) => {
   const host = req.headers.host || "";
@@ -430,8 +474,8 @@ createServer(async (req, res) => {
     return res.end();
   }
 
-  // CORS preflight for RPC proxy
-  if (req.url === "/api/rpc" && req.method === "OPTIONS") {
+  // CORS preflight for RPC proxies
+  if ((req.url === "/api/rpc" || req.url === "/api/rpc-mainnet") && req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST",
@@ -450,6 +494,7 @@ createServer(async (req, res) => {
 
   // API routes
   if (req.url === "/api/rpc" && req.method === "POST") return handleRpc(req, res);
+  if (req.url === "/api/rpc-mainnet" && req.method === "POST") return handleRpcMainnet(req, res);
   if (req.url === "/api/chat" && req.method === "POST") return handleChat(req, res);
   if (req.url === "/api/health") {
     res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
@@ -915,11 +960,12 @@ createServer(async (req, res) => {
   console.log(`  Started:  ${ts}`);
   console.log(`  Port:     ${PORT}`);
   console.log(`  Static:   ${DIST}`);
-  console.log(`  RPC:      ${SOLANA_RPC_URL}`);
+  console.log(`  RPC Dev:  ${SOLANA_RPC_URL}`);
+  console.log(`  RPC Main: ${SOLANA_MAINNET_RPC_URL}`);
   console.log(`  AI:       ${process.env.ANTHROPIC_API_KEY ? "ONLINE" : "OFFLINE (set ANTHROPIC_API_KEY)"}`);
   console.log("──────────────────────────────────────────────");
-  console.log(`  Percolator:  DEVNET (slab accounts)`);
-  console.log(`  Launchpad:   MAINNET (pump.fun / PumpSwap)`);
+  console.log(`  Percolator:  DEVNET  → /api/rpc`);
+  console.log(`  Launchpad:   MAINNET → /api/rpc-mainnet`);
   console.log(`  Xenoscope:   MAINNET (signal intelligence)`);
   console.log(`  Fee Wallet:  ${ALIENTOR_FEE_WALLET ? ALIENTOR_FEE_WALLET.slice(0, 12) + "..." : "NOT SET (add ALIENTOR_FEE_WALLET)"}`);
   console.log(`  Fee Rate:    ${ALIENTOR_FEE_BPS} bps (1%)`);

@@ -235,9 +235,10 @@ export function Launchpad() {
       const tx = VersionedTransaction.deserialize(txBytes);
       const signed = await signTransaction(tx);
 
-      // Step 5: Send to Solana mainnet
+      // Step 5: Send to Solana mainnet via server-side RPC proxy
       setLaunchStatus("Broadcasting to Solana mainnet...");
-      const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
+      const mainnetRpc = `${window.location.origin}/api/rpc-mainnet`;
+      const connection = new Connection(mainnetRpc, "confirmed");
       const sig = await connection.sendRawTransaction(signed.serialize(), {
         skipPreflight: true,
         maxRetries: 3,
