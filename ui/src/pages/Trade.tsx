@@ -19,7 +19,9 @@ import {
   buildKeeperCrankTx,
   buildWithdrawTx,
   buildCloseAccountTx,
+  readMint,
 } from "../lib/transactions";
+import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import { parseAccount as parseAcctRaw, parseMarketState } from "../lib/percolator";
 
 /** Filter out ComputeBudgetProgram instructions from a transaction */
@@ -54,6 +56,7 @@ export function Trade() {
   const [amount, setAmount] = useState("");
   const [positionsTab, setPositionsTab] = useState<"positions" | "orders" | "history">("positions");
   const [tradePhase, setTradePhase] = useState<string | null>(null);
+  const [tradeError, setTradeError] = useState<string | null>(null);
 
   // Derived
   const userAccounts = useMemo(
@@ -91,7 +94,7 @@ export function Trade() {
     if (!publicKey || !selectedMarket || !rawData || !state || !amount || tradePhase) return;
     const slab = new PublicKey(selectedMarket);
     const amountLamports = BigInt(Math.floor(Number(amount) * tokenMultiplier));
-    console.log("[TRADE] Starting trade:", { side: orderSide, amount, leverage, amountLamports: amountLamports.toString(), slab: slab.toBase58() });
+    setTradeError(null);
 
     try {
     // Step 1: Create account if user doesn't have one (separate tx — only first time ever)
@@ -135,67 +138,64 @@ export function Trade() {
     if (!lp) { console.error("[TRADE] No LP found on this market — cannot trade"); return; }
     console.log("[TRADE] Found LP:", { idx: lp.idx, owner: lp.owner.toBase58(), matcher: lp.matcherProgram.toBase58() });
 
-    // === DIAGNOSTIC: read raw on-chain values ===
+    // Pre-flight: check user's collateral token balance before building tx
+    setTradePhase("Checking balance...");
+    const mint = readMint(freshData);
+    let userTokenBalance = 0n;
+    try {
+      const userAta = await getAssociatedTokenAddress(mint, publicKey);
+      const ataInfo = await getAccount(connection, userAta);
+      userTokenBalance = ataInfo.amount;
+    } catch {
+      // ATA doesn't exist — user has 0 of this token
+    }
+    const tokenName = getMarketName(state.collateralMint)?.name || "collateral";
+    if (userTokenBalance < amountLamports) {
+      const have = Number(userTokenBalance) / tokenMultiplier;
+      const need = Number(amountLamports) / tokenMultiplier;
+      throw new Error(
+        `Insufficient ${tokenName} tokens — you have ${have.toFixed(2)} but need ${need.toFixed(2)}. ` +
+        `Get more ${tokenName} tokens in your wallet first.`
+      );
+    }
+
     const freshState = parseMarketState(freshData);
     const userAcct = parseAcctRaw(freshData, userIdx);
-    const lpAcct = parseAcctRaw(freshData, lp.idx);
-    console.log("[TRADE] === PRE-TRADE DIAGNOSTICS ===");
-    console.log("[TRADE] Mark price e6:", freshState.markPriceE6.toString());
-    console.log("[TRADE] Initial margin bps:", freshState.initialMarginBps);
-    console.log("[TRADE] Maintenance margin bps:", freshState.maintenanceMarginBps);
-    console.log("[TRADE] Trading fee bps:", freshState.tradingFeeBps);
-    console.log("[TRADE] Is inverted:", freshState.inverted);
-    console.log("[TRADE] Is hyperp:", freshState.isHyperp);
-    console.log("[TRADE] User capital (raw):", userAcct?.capital.toString() ?? "null");
-    console.log("[TRADE] User position (raw):", userAcct?.positionSize.toString() ?? "null");
-    console.log("[TRADE] User PnL (raw):", userAcct?.pnl.toString() ?? "null");
-    console.log("[TRADE] LP capital (raw):", lpAcct?.capital.toString() ?? "null");
-    console.log("[TRADE] LP position (raw):", lpAcct?.positionSize.toString() ?? "null");
-    console.log("[TRADE] Deposit amount (raw):", amountLamports.toString());
 
     // Calculate position size using the engine formula:
     //   on-chain: notional = abs(size) * mark_price / 1e6
     //   on-chain: margin   = notional * initial_margin_bps / 10000
     // So to get a desired notional of (amount * leverage) tokens, we need:
     //   size = desiredNotional_e6 * 1e6 / markPrice_e6
-    const desiredNotionalE6 = amountLamports * BigInt(leverage);  // in token e6 units
+    const desiredNotionalE6 = amountLamports * BigInt(leverage);
     const markPrice = freshState.markPriceE6;
-    if (markPrice <= 0n) { console.error("[TRADE] Mark price is zero!"); return; }
+    if (markPrice <= 0n) { throw new Error("Mark price is zero — market may not be initialized"); }
     const sizeRaw = desiredNotionalE6 * 1_000_000n / markPrice;
     const size = orderSide === "long" ? sizeRaw : -sizeRaw;
 
-    // Diagnostic: verify the margin math
+    // Verify margin math before sending
     const absSize = sizeRaw < 0n ? -sizeRaw : sizeRaw;
     const expectedNotional = absSize * markPrice / 1_000_000n;
     const expectedMargin = expectedNotional * BigInt(freshState.initialMarginBps) / 10_000n;
     const expectedCapital = (userAcct?.capital ?? 0n) + amountLamports;
-    console.log("[TRADE] Desired notional (e6):", desiredNotionalE6.toString(), `(${Number(desiredNotionalE6) / 1e6} tokens)`);
-    console.log("[TRADE] Mark price (e6):", markPrice.toString());
-    console.log("[TRADE] Size (raw):", sizeRaw.toString(), orderSide === "long" ? "(LONG)" : "(SHORT)");
-    console.log("[TRADE] On-chain notional:", expectedNotional.toString(), `(${Number(expectedNotional) / 1e6} tokens)`);
-    console.log("[TRADE] On-chain margin:", expectedMargin.toString(), `(${Number(expectedMargin) / 1e6} tokens)`);
-    console.log("[TRADE] Expected capital after deposit:", expectedCapital.toString(), `(${Number(expectedCapital) / 1e6} tokens)`);
-    console.log("[TRADE] Margin vs capital:", expectedMargin <= expectedCapital ? "OK — should pass" : "FAIL — margin > capital!");
-    console.log("[TRADE] === END DIAGNOSTICS ===");
+    if (expectedMargin > expectedCapital) {
+      throw new Error(
+        `Insufficient margin — need ${(Number(expectedMargin) / 1e6).toFixed(2)} but will have ` +
+        `${(Number(expectedCapital) / 1e6).toFixed(2)} capital after deposit. Try a lower leverage or larger deposit.`
+      );
+    }
 
     // Build all 3 transactions individually, then combine instructions into ONE tx
     setTradePhase("Building trade...");
-    console.log("[TRADE] Building combined Deposit+Crank+Trade transaction...");
     await execute(async () => {
       const depositTx = await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports);
-      console.log("[TRADE]   Deposit instructions:", depositTx.instructions.length);
-
       const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
-      console.log("[TRADE]   Crank instructions:", crankTx.instructions.length);
-
       const tradeTx = await buildTradeCpiTx(
         publicKey, slab, freshData,
         lp.idx, lp.owner, lp.matcherProgram, lp.matcherContext,
         userIdx, size,
       );
-      console.log("[TRADE]   Trade instructions:", tradeTx.instructions.length);
 
-      // Combine: single compute budget + all real instructions
       const combined = new Transaction();
       combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }));
 
@@ -204,15 +204,17 @@ export function Trade() {
           combined.add(ix);
         }
       }
-
-      console.log("[TRADE] Combined tx total instructions:", combined.instructions.length,
-        "(1 compute budget + deposit + crank + trade)");
       return { tx: combined };
-    }, refetch);
+    });
 
+    // Wait for chain state to settle, then refetch BEFORE clearing tradePhase
+    setTradePhase("Updating positions...");
+    await new Promise((r) => setTimeout(r, 2000));
+    await refetch();
     console.log("[TRADE] Trade flow complete");
     } catch (e: any) {
-      console.error("[TRADE] Unexpected error:", e.message);
+      console.error("[TRADE] Error:", e.message);
+      setTradeError(e.message || "Trade failed");
     } finally {
       setTradePhase(null);
     }
@@ -267,10 +269,9 @@ export function Trade() {
     if (myAccount.positionSize === 0n) return;
 
     const slab = new PublicKey(selectedMarket);
-    const reverseSize = -myAccount.positionSize; // flip sign to close
-    console.log("[CLOSE POS] Closing position, reverse size:", reverseSize.toString());
 
     try {
+      // Always fetch FRESH slab data — never use stale React state for position size
       setTradePhase("Fetching market data...");
       let freshInfo;
       try {
@@ -286,6 +287,17 @@ export function Trade() {
 
       const userIdx = findUserAccount(freshData, publicKey, "user");
       if (userIdx === null) { setTradePhase(null); return; }
+
+      // Read FRESH position from on-chain slab — not stale React state
+      const freshAcct = parseAcctRaw(freshData, userIdx);
+      if (!freshAcct || freshAcct.positionSize === 0n) {
+        console.log("[CLOSE POS] Position already closed (fresh slab data confirms size=0)");
+        await refetch();
+        return;
+      }
+
+      const reverseSize = -freshAcct.positionSize;
+      console.log("[CLOSE POS] Closing position, fresh size:", freshAcct.positionSize.toString(), "reverse:", reverseSize.toString());
 
       const lp = findFirstLP(freshData);
       if (!lp) { console.error("[CLOSE POS] No LP found"); setTradePhase(null); return; }
@@ -307,8 +319,13 @@ export function Trade() {
           }
         }
         return { tx: combined };
-      }, refetch);
+      });
 
+      // Wait for chain state to settle, then refetch BEFORE clearing tradePhase
+      // This prevents the Close Position button from reappearing with stale data
+      setTradePhase("Updating positions...");
+      await new Promise((r) => setTimeout(r, 2000));
+      await refetch();
       console.log("[CLOSE POS] Position close complete");
     } catch (e: any) {
       console.error("[CLOSE POS] Error:", e.message);
@@ -670,6 +687,21 @@ export function Trade() {
                     </span>
                     <button
                       onClick={clearStatus}
+                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
+                    >
+                      x
+                    </button>
+                  </div>
+                </div>
+              )}
+              {tradeError && (
+                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--red, #ff4466)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="text-red" style={{ fontSize: "0.85rem" }}>
+                      {tradeError}
+                    </span>
+                    <button
+                      onClick={() => setTradeError(null)}
                       style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
                     >
                       x
