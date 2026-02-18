@@ -63,6 +63,95 @@ function saveJsonFile(filePath, data) {
 let registeredTokens = loadJsonFile(REGISTERED_TOKENS_FILE) || [];
 let launches = loadJsonFile(LAUNCHES_FILE) || [];
 
+// ─── Fee Routing Config ─────────────────────────────────────────
+// ALIENTOR_FEE_WALLET: Solana wallet where the 1% protocol fee gets routed
+// Set in Railway env vars. This wallet receives 1% of all creator fees.
+const ALIENTOR_FEE_WALLET = process.env.ALIENTOR_FEE_WALLET || "";
+const ALIENTOR_FEE_BPS = 100; // 1% (100 basis points)
+
+// ─── Leaderboard cache ──────────────────────────────────────────
+const leaderboardCache = { data: null, updatedAt: 0 };
+const LEADERBOARD_CACHE_TTL = 60_000; // 1 min cache
+
+// Pinned token: $ALIENATOR — always featured at top of leaderboard
+const ALIENATOR_TOKEN = {
+  mint: "AWQ5b6KkXKASgEQ9E7zh19fLAZaSFftSBJCQyhJrpump",
+  name: "Alienator",
+  symbol: "ALIENATOR",
+  pinned: true,
+  path: "pumpfun",
+  network: "mainnet",
+};
+
+/** Fetch token market data from pump.fun (with 10s timeout) */
+async function fetchPumpData(mint) {
+  try {
+    const res = await fetch(`https://frontend-api.pump.fun/coins/${mint}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+/** Build leaderboard: registered tokens + pinned ALIENATOR, sorted by mcap */
+async function buildLeaderboard() {
+  const now = Date.now();
+  if (leaderboardCache.data && now - leaderboardCache.updatedAt < LEADERBOARD_CACHE_TTL) {
+    return leaderboardCache.data;
+  }
+
+  // Combine registered tokens + ensure ALIENATOR is included
+  const allMints = new Map();
+  for (const t of registeredTokens) {
+    allMints.set(t.mint, { ...t });
+  }
+  if (!allMints.has(ALIENATOR_TOKEN.mint)) {
+    allMints.set(ALIENATOR_TOKEN.mint, { ...ALIENATOR_TOKEN, registeredAt: Date.now() });
+  }
+
+  // Fetch pump.fun data for up to 15 tokens (rate-limited)
+  const entries = [...allMints.values()].slice(0, 15);
+  const enriched = [];
+
+  for (const token of entries) {
+    const pump = await fetchPumpData(token.mint);
+    enriched.push({
+      mint: token.mint,
+      name: pump?.name || token.name || "Unknown",
+      symbol: pump?.symbol || token.symbol || "TOKEN",
+      image: pump?.image_uri || pump?.image || null,
+      mcap: pump?.usd_market_cap || pump?.market_cap || 0,
+      volume: pump?.volume_24h || 0,
+      progress: pump?.bonding_curve_progress || pump?.progress || 0,
+      graduated: pump?.complete || pump?.graduated || false,
+      path: token.path === "raydium" ? "Raydium" : "pump.fun",
+      pinned: token.mint === ALIENATOR_TOKEN.mint,
+      createdAt: token.registeredAt || null,
+      network: "mainnet",
+    });
+    // Brief delay to avoid rate limiting
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  // Sort: pinned first, then by mcap descending
+  enriched.sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return (b.mcap || 0) - (a.mcap || 0);
+  });
+
+  const leaderboard = enriched.slice(0, 10).map((t, i) => ({
+    ...t,
+    rank: i + 1,
+    reward: i < 3 ? "Top 3" : null,
+  }));
+
+  leaderboardCache.data = leaderboard;
+  leaderboardCache.updatedAt = now;
+  return leaderboard;
+}
+
 // ─── Vanity Vault (in-memory, server-side keypair security) ──────
 const vanityVault = new Map();
 const vanityRateLimits = new Map();
@@ -630,6 +719,40 @@ createServer(async (req, res) => {
       raydiumTokens: registeredTokens.filter((t) => t.path === "raydium").length,
       vaultActive: vanityVault.size,
       network: "mainnet",
+      feeWallet: ALIENTOR_FEE_WALLET ? ALIENTOR_FEE_WALLET.slice(0, 8) + "..." : "NOT SET",
+      feeBps: ALIENTOR_FEE_BPS,
+    }));
+  }
+
+  // --- GET /api/launchpad/leaderboard ---
+  // Top tokens by market cap, with pinned $ALIENATOR
+  if (urlPath_ === "/api/launchpad/leaderboard" && req.method === "GET") {
+    try {
+      const leaderboard = await buildLeaderboard();
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({
+        leaderboard,
+        feeWallet: ALIENTOR_FEE_WALLET || null,
+        feeBps: ALIENTOR_FEE_BPS,
+        network: "mainnet",
+      }));
+    } catch (err) {
+      console.error("[LEADERBOARD]", err.message);
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ leaderboard: [], network: "mainnet" }));
+    }
+  }
+
+  // --- GET /api/launchpad/fee-config ---
+  // Public fee routing configuration
+  if (urlPath_ === "/api/launchpad/fee-config" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    return res.end(JSON.stringify({
+      feeWallet: ALIENTOR_FEE_WALLET || "NOT_CONFIGURED",
+      feeBps: ALIENTOR_FEE_BPS,
+      feePercent: "1%",
+      description: "1% of all creator fees routed to Alientor Protocol treasury",
+      network: "mainnet",
     }));
   }
 
@@ -671,6 +794,8 @@ createServer(async (req, res) => {
   console.log("──────────────────────────────────────────────");
   console.log(`  Percolator:  DEVNET (slab accounts)`);
   console.log(`  Launchpad:   MAINNET (pump.fun / PumpSwap)`);
+  console.log(`  Fee Wallet:  ${ALIENTOR_FEE_WALLET ? ALIENTOR_FEE_WALLET.slice(0, 12) + "..." : "NOT SET (add ALIENTOR_FEE_WALLET)"}`);
+  console.log(`  Fee Rate:    ${ALIENTOR_FEE_BPS} bps (1%)`);
   console.log(`  Vault:       ${vanityVault.size} active entries`);
   console.log(`  Tokens:      ${registeredTokens.length} registered`);
   console.log("──────────────────────────────────────────────");
