@@ -7,6 +7,7 @@ import { Home } from "./pages/Home";
 import { Trade } from "./pages/Trade";
 import { Earn } from "./pages/Earn";
 import { Launchpad } from "./pages/Launchpad";
+import { Xenoscope } from "./pages/Xenoscope";
 import { Register } from "./pages/Register";
 import { Indexer } from "./pages/Indexer";
 import { Guide } from "./pages/Guide";
@@ -43,6 +44,8 @@ function AppContent() {
         return <Earn />;
       case ROUTES.LAUNCHPAD:
         return <Launchpad />;
+      case ROUTES.XENOSCOPE:
+        return <Xenoscope />;
       case ROUTES.REGISTER:
         return <Register />;
       case ROUTES.INDEXER:
