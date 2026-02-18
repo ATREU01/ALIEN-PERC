@@ -881,6 +881,102 @@ createServer(async (req, res) => {
     }
   }
 
+  // --- GET /api/launchpad/tek-dashboard?wallet=... ---
+  // TEK Engine dashboard data: token stats, allocations, market data from pump.fun + DexScreener
+  if (urlPath_ === "/api/launchpad/tek-dashboard" && req.method === "GET") {
+    const wallet = urlParams.get("wallet");
+    if (!wallet) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Missing wallet parameter" }));
+    }
+
+    try {
+      const userTokens = registeredTokens.filter((t) => t.creator === wallet);
+      const enriched = [];
+
+      for (const token of userTokens.slice(0, 10)) {
+        const entry = { ...token, market: null, analysis: null };
+
+        // Fetch pump.fun data
+        try {
+          const pumpRes = await fetch(
+            `https://frontend-api.pump.fun/coins/${token.mint}`,
+            { signal: AbortSignal.timeout(5000) },
+          );
+          if (pumpRes.ok) {
+            const pump = await pumpRes.json();
+            entry.market = {
+              mcap: pump.usd_market_cap || 0,
+              price: pump.virtual_sol_reserves && pump.virtual_token_reserves
+                ? (pump.virtual_sol_reserves / 1e9) / (pump.virtual_token_reserves / 1e6)
+                : 0,
+              progress: pump.bonding_curve_progress || 0,
+              graduated: pump.complete || false,
+              volume24h: pump.volume_24h || 0,
+              image: pump.image_uri || null,
+              replyCount: pump.reply_count || 0,
+              createdAt: pump.created_timestamp || token.registeredAt,
+            };
+          }
+        } catch (e) { /* fallback to DexScreener */ }
+
+        // Enrich with DexScreener for graduated tokens
+        if (!entry.market || entry.market.graduated) {
+          try {
+            const dexRes = await fetch(
+              `https://api.dexscreener.com/latest/dex/tokens/${token.mint}`,
+              { signal: AbortSignal.timeout(5000) },
+            );
+            if (dexRes.ok) {
+              const dex = await dexRes.json();
+              if (dex?.pairs?.length > 0) {
+                const pair = dex.pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+                entry.market = {
+                  ...(entry.market || {}),
+                  mcap: pair.marketCap || entry.market?.mcap || 0,
+                  price: parseFloat(pair.priceUsd) || entry.market?.price || 0,
+                  volume24h: parseFloat(pair.volume?.h24) || entry.market?.volume24h || 0,
+                  liquidity: pair.liquidity?.usd || 0,
+                  priceChange: {
+                    m5: parseFloat(pair.priceChange?.m5) || 0,
+                    h1: parseFloat(pair.priceChange?.h1) || 0,
+                    h6: parseFloat(pair.priceChange?.h6) || 0,
+                    h24: parseFloat(pair.priceChange?.h24) || 0,
+                  },
+                  graduated: true,
+                  dexPair: pair.pairAddress || null,
+                };
+              }
+            }
+          } catch (e) { /* ignore */ }
+        }
+
+        // Build analysis from allocation strategy
+        const strat = token.allocationStrategy || "balanced";
+        const STRATS = {
+          balanced: { marketMaking: 25, buybackBurn: 25, liquidity: 25, creatorRevenue: 25 },
+          growth: { marketMaking: 40, buybackBurn: 20, liquidity: 30, creatorRevenue: 10 },
+          burn: { marketMaking: 20, buybackBurn: 50, liquidity: 20, creatorRevenue: 10 },
+          lp: { marketMaking: 15, buybackBurn: 15, liquidity: 60, creatorRevenue: 10 },
+          revenue: { marketMaking: 20, buybackBurn: 10, liquidity: 20, creatorRevenue: 50 },
+        };
+        entry.analysis = {
+          allocations: STRATS[strat] || STRATS.balanced,
+          strategy: strat,
+        };
+
+        enriched.push(entry);
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ tokens: enriched, network: "mainnet" }));
+    } catch (err) {
+      console.error("[TEK-DASHBOARD]", err.message);
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
   // --- GET /api/launchpad/fee-config ---
   // Public fee routing configuration
   if (urlPath_ === "/api/launchpad/fee-config" && req.method === "GET") {
