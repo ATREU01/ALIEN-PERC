@@ -24,13 +24,26 @@ import {
 import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import { parseAccount as parseAcctRaw, parseMarketState } from "../lib/percolator";
 
-/** Filter out ComputeBudgetProgram instructions from a transaction */
 const COMPUTE_BUDGET_ID = ComputeBudgetProgram.programId;
-function getNonBudgetInstructions(tx: Transaction) {
+function getNonBudgetIxs(tx: Transaction) {
   return tx.instructions.filter((ix) => !ix.programId.equals(COMPUTE_BUDGET_ID));
 }
 
+function combineTxs(txs: Transaction[], cuLimit: number): Transaction {
+  const combined = new Transaction();
+  combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: cuLimit }));
+  for (const tx of txs) {
+    for (const ix of getNonBudgetIxs(tx)) combined.add(ix);
+  }
+  return combined;
+}
+
 type OrderSide = "long" | "short";
+
+// Dismiss button for feedback cards
+const DismissBtn = ({ onClick }: { onClick: () => void }) => (
+  <button className="dismiss-btn" onClick={onClick}>x</button>
+);
 
 export function Trade() {
   const { execute, status, lastError, lastSignature, txHistory, confirmElapsed, clearStatus, connected, publicKey, connection } = usePercolatorTx();
@@ -38,19 +51,12 @@ export function Trade() {
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
   const { state, accounts, rawData, loading, error, refetch } = useMarketData(selectedMarket);
 
-  // Auto-select the first market once discovery finishes
   useEffect(() => {
-    if (!selectedMarket && markets.length > 0) {
-      setSelectedMarket(markets[0].address);
-    }
+    if (!selectedMarket && markets.length > 0) setSelectedMarket(markets[0].address);
   }, [markets, selectedMarket]);
 
-  // Reset trade phase when switching markets
-  useEffect(() => {
-    setTradePhase(null);
-  }, [selectedMarket]);
+  useEffect(() => { setTradePhase(null); }, [selectedMarket]);
 
-  // Order form state
   const [orderSide, setOrderSide] = useState<OrderSide>("long");
   const [leverage, setLeverage] = useState(5);
   const [amount, setAmount] = useState("");
@@ -58,17 +64,9 @@ export function Trade() {
   const [tradePhase, setTradePhase] = useState<string | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
 
-  // Derived
-  const userAccounts = useMemo(
-    () => accounts.filter((a) => a.kind === "user"),
-    [accounts]
-  );
-  const lpAccounts = useMemo(
-    () => accounts.filter((a) => a.kind === "lp"),
-    [accounts]
-  );
+  const userAccounts = useMemo(() => accounts.filter((a) => a.kind === "user"), [accounts]);
+  const lpAccounts = useMemo(() => accounts.filter((a) => a.kind === "lp"), [accounts]);
 
-  // Find current user's account on this market
   const myAccount = useMemo(() => {
     if (!publicKey || !rawData) return null;
     const idx = findUserAccount(rawData, publicKey, "user");
@@ -81,15 +79,22 @@ export function Trade() {
     return findUserAccount(rawData, publicKey, "user");
   }, [publicKey, rawData]);
 
-  // Token decimals for the collateral mint (6 for Alienator, etc.)
-  const tokenDecimals = useMemo(() => {
-    if (!state) return 6;
-    return getTokenDecimals(state.collateralMint);
-  }, [state]);
-
+  const tokenDecimals = useMemo(() => state ? getTokenDecimals(state.collateralMint) : 6, [state]);
   const tokenMultiplier = useMemo(() => 10 ** tokenDecimals, [tokenDecimals]);
 
-  // Handle trade submission — ONE wallet popup for Deposit+Crank+Trade combined
+  // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  async function fetchFreshSlab(slab: PublicKey): Promise<Buffer | null> {
+    try {
+      const info = await connection.getAccountInfo(slab);
+      return info ? Buffer.from(info.data) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Trade: Deposit + Crank + Trade (one wallet popup) ────────────────────
+
   const handleTrade = async () => {
     if (!publicKey || !selectedMarket || !rawData || !state || !amount || tradePhase) return;
     const slab = new PublicKey(selectedMarket);
@@ -97,164 +102,106 @@ export function Trade() {
     setTradeError(null);
 
     try {
-    // Step 1: Create account if user doesn't have one (separate tx — only first time ever)
-    if (myAccountIdx === null) {
-      setTradePhase("Creating account...");
-      console.log("[TRADE] No user account found — creating one first (InitUser)...");
-      const result = await execute(async () => ({
-        tx: await buildInitUserTx(connection, publicKey, slab, rawData),
-      }));
-      if (result.error) {
-        console.error("[TRADE] InitUser FAILED:", result.error);
-        setTradePhase(null);
-        return;
+      // Create account if needed (separate tx — first time only)
+      if (myAccountIdx === null) {
+        setTradePhase("Creating account...");
+        const result = await execute(async () => ({
+          tx: await buildInitUserTx(connection, publicKey, slab, rawData),
+        }));
+        if (result.error) { setTradePhase(null); return; }
+        await new Promise((r) => setTimeout(r, 2000));
+        await refetch();
       }
-      console.log("[TRADE] InitUser confirmed, waiting 2s then refetching slab...");
+
+      // Fetch fresh slab
+      setTradePhase("Fetching market data...");
+      const freshData = await fetchFreshSlab(slab);
+      if (!freshData) throw new Error("Failed to fetch market data");
+
+      const userIdx = findUserAccount(freshData, publicKey, "user");
+      if (userIdx === null) throw new Error("Account not found after creation");
+
+      const lp = findFirstLP(freshData);
+      if (!lp) throw new Error("No LP found — market needs liquidity");
+
+      // Pre-flight: check collateral token balance
+      setTradePhase("Checking balance...");
+      const mint = readMint(freshData);
+      let userTokenBalance = 0n;
+      try {
+        const userAta = await getAssociatedTokenAddress(mint, publicKey);
+        const ataInfo = await getAccount(connection, userAta);
+        userTokenBalance = ataInfo.amount;
+      } catch { /* ATA doesn't exist — balance is 0 */ }
+
+      const tokenName = getMarketName(state.collateralMint)?.name || "collateral";
+      if (userTokenBalance < amountLamports) {
+        const have = Number(userTokenBalance) / tokenMultiplier;
+        const need = Number(amountLamports) / tokenMultiplier;
+        throw new Error(
+          `Insufficient ${tokenName} tokens — you have ${have.toFixed(2)} but need ${need.toFixed(2)}. Get more tokens first.`
+        );
+      }
+
+      // Calculate position size: size = (amount * leverage) * 1e6 / markPrice
+      const freshState = parseMarketState(freshData);
+      const userAcct = parseAcctRaw(freshData, userIdx);
+      const markPrice = freshState.markPriceE6;
+      if (markPrice <= 0n) throw new Error("Mark price is zero — market not initialized");
+
+      const sizeRaw = (amountLamports * BigInt(leverage) * 1_000_000n) / markPrice;
+      const size = orderSide === "long" ? sizeRaw : -sizeRaw;
+
+      // Pre-flight: verify margin covers
+      const expectedNotional = sizeRaw * markPrice / 1_000_000n;
+      const expectedMargin = expectedNotional * BigInt(freshState.initialMarginBps) / 10_000n;
+      const expectedCapital = (userAcct?.capital ?? 0n) + amountLamports;
+      if (expectedMargin > expectedCapital) {
+        throw new Error(
+          `Insufficient margin — need ${(Number(expectedMargin) / 1e6).toFixed(2)} but will have ${(Number(expectedCapital) / 1e6).toFixed(2)}. Try lower leverage.`
+        );
+      }
+
+      // Build combined Deposit + Crank + Trade
+      setTradePhase("Building trade...");
+      await execute(async () => {
+        const depositTx = await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports);
+        const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
+        const tradeTx = await buildTradeCpiTx(
+          publicKey, slab, freshData,
+          lp.idx, lp.owner, lp.matcherProgram, lp.matcherContext,
+          userIdx, size,
+        );
+        return { tx: combineTxs([depositTx, crankTx, tradeTx], 1_400_000) };
+      });
+
+      setTradePhase("Updating positions...");
       await new Promise((r) => setTimeout(r, 2000));
       await refetch();
-    }
-
-    // Refetch slab data ONCE to get latest state
-    setTradePhase("Fetching market data...");
-    console.log("[TRADE] Fetching fresh slab data...");
-    let freshInfo;
-    try {
-      freshInfo = await connection.getAccountInfo(slab);
     } catch (e: any) {
-      console.error("[TRADE] RPC error fetching slab:", e.message);
-      setTradePhase(null);
-      alert("RPC connection failed. Please try again.");
-      return;
-    }
-    if (!freshInfo) { console.error("[TRADE] Slab account not found!"); setTradePhase(null); return; }
-    const freshData = Buffer.from(freshInfo.data);
-    console.log("[TRADE] Got slab data:", freshInfo.data.length, "bytes");
-
-    const userIdx = findUserAccount(freshData, publicKey, "user");
-    if (userIdx === null) { console.error("[TRADE] User account not found in slab after InitUser!"); return; }
-    console.log("[TRADE] User account index:", userIdx);
-
-    const lp = findFirstLP(freshData);
-    if (!lp) { console.error("[TRADE] No LP found on this market — cannot trade"); return; }
-    console.log("[TRADE] Found LP:", { idx: lp.idx, owner: lp.owner.toBase58(), matcher: lp.matcherProgram.toBase58() });
-
-    // Pre-flight: check user's collateral token balance before building tx
-    setTradePhase("Checking balance...");
-    const mint = readMint(freshData);
-    let userTokenBalance = 0n;
-    try {
-      const userAta = await getAssociatedTokenAddress(mint, publicKey);
-      const ataInfo = await getAccount(connection, userAta);
-      userTokenBalance = ataInfo.amount;
-    } catch {
-      // ATA doesn't exist — user has 0 of this token
-    }
-    const tokenName = getMarketName(state.collateralMint)?.name || "collateral";
-    if (userTokenBalance < amountLamports) {
-      const have = Number(userTokenBalance) / tokenMultiplier;
-      const need = Number(amountLamports) / tokenMultiplier;
-      throw new Error(
-        `Insufficient ${tokenName} tokens — you have ${have.toFixed(2)} but need ${need.toFixed(2)}. ` +
-        `Get more ${tokenName} tokens in your wallet first.`
-      );
-    }
-
-    const freshState = parseMarketState(freshData);
-    const userAcct = parseAcctRaw(freshData, userIdx);
-
-    // Calculate position size using the engine formula:
-    //   on-chain: notional = abs(size) * mark_price / 1e6
-    //   on-chain: margin   = notional * initial_margin_bps / 10000
-    // So to get a desired notional of (amount * leverage) tokens, we need:
-    //   size = desiredNotional_e6 * 1e6 / markPrice_e6
-    const desiredNotionalE6 = amountLamports * BigInt(leverage);
-    const markPrice = freshState.markPriceE6;
-    if (markPrice <= 0n) { throw new Error("Mark price is zero — market may not be initialized"); }
-    const sizeRaw = desiredNotionalE6 * 1_000_000n / markPrice;
-    const size = orderSide === "long" ? sizeRaw : -sizeRaw;
-
-    // Verify margin math before sending
-    const absSize = sizeRaw < 0n ? -sizeRaw : sizeRaw;
-    const expectedNotional = absSize * markPrice / 1_000_000n;
-    const expectedMargin = expectedNotional * BigInt(freshState.initialMarginBps) / 10_000n;
-    const expectedCapital = (userAcct?.capital ?? 0n) + amountLamports;
-    if (expectedMargin > expectedCapital) {
-      throw new Error(
-        `Insufficient margin — need ${(Number(expectedMargin) / 1e6).toFixed(2)} but will have ` +
-        `${(Number(expectedCapital) / 1e6).toFixed(2)} capital after deposit. Try a lower leverage or larger deposit.`
-      );
-    }
-
-    // Build all 3 transactions individually, then combine instructions into ONE tx
-    setTradePhase("Building trade...");
-    await execute(async () => {
-      const depositTx = await buildDepositTx(connection, publicKey, slab, freshData, userIdx, amountLamports);
-      const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
-      const tradeTx = await buildTradeCpiTx(
-        publicKey, slab, freshData,
-        lp.idx, lp.owner, lp.matcherProgram, lp.matcherContext,
-        userIdx, size,
-      );
-
-      const combined = new Transaction();
-      combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }));
-
-      for (const tx of [depositTx, crankTx, tradeTx]) {
-        for (const ix of getNonBudgetInstructions(tx)) {
-          combined.add(ix);
-        }
-      }
-      return { tx: combined };
-    });
-
-    // Wait for chain state to settle, then refetch BEFORE clearing tradePhase
-    setTradePhase("Updating positions...");
-    await new Promise((r) => setTimeout(r, 2000));
-    await refetch();
-    console.log("[TRADE] Trade flow complete");
-    } catch (e: any) {
-      console.error("[TRADE] Error:", e.message);
       setTradeError(e.message || "Trade failed");
     } finally {
       setTradePhase(null);
     }
   };
 
-  // Handle withdraw — ONE wallet popup for Crank+Withdraw combined
+  // ─── Withdraw: Crank + Withdraw (one wallet popup) ────────────────────────
+
   const handleWithdraw = async (acctIdx: number, acctCapital: bigint) => {
     if (!publicKey || !selectedMarket || !rawData) return;
     const slab = new PublicKey(selectedMarket);
-    console.log("[WITHDRAW] Starting withdraw:", { acctIdx, capital: acctCapital.toString(), slab: slab.toBase58() });
+    const freshData = await fetchFreshSlab(slab);
+    if (!freshData) return;
 
-    // Fetch fresh data
-    console.log("[WITHDRAW] Fetching fresh slab data...");
-    const freshInfo = await connection.getAccountInfo(slab);
-    if (!freshInfo) { console.error("[WITHDRAW] Slab account not found!"); return; }
-    const freshData = Buffer.from(freshInfo.data);
-
-    // Build combined Crank+Withdraw in ONE transaction
-    console.log("[WITHDRAW] Building combined Crank+Withdraw transaction...");
     await execute(async () => {
       const crankTx = buildKeeperCrankTx(publicKey, slab, freshData);
       const withdrawTx = await buildWithdrawTx(connection, publicKey, slab, freshData, acctIdx, acctCapital);
-
-      const combined = new Transaction();
-      combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }));
-
-      for (const tx of [crankTx, withdrawTx]) {
-        for (const ix of getNonBudgetInstructions(tx)) {
-          combined.add(ix);
-        }
-      }
-
-      console.log("[WITHDRAW] Combined tx instructions:", combined.instructions.length);
-      return { tx: combined };
+      return { tx: combineTxs([crankTx, withdrawTx], 1_000_000) };
     }, refetch);
-
-    console.log("[WITHDRAW] Withdraw flow complete");
   };
 
-  // Handle close account (zero position, zero capital)
+  // ─── Close account (zero everything) ──────────────────────────────────────
+
   const handleClose = async (acctIdx: number) => {
     if (!publicKey || !selectedMarket || !rawData) return;
     const slab = new PublicKey(selectedMarket);
@@ -263,7 +210,8 @@ export function Trade() {
     }), refetch);
   };
 
-  // Handle close position — trade in reverse direction to flatten
+  // ─── Close position: reverse trade to flatten ─────────────────────────────
+
   const handleClosePosition = async () => {
     if (!publicKey || !selectedMarket || !rawData || !myAccount || myAccountIdx === null || tradePhase) return;
     if (myAccount.positionSize === 0n) return;
@@ -271,36 +219,23 @@ export function Trade() {
     const slab = new PublicKey(selectedMarket);
 
     try {
-      // Always fetch FRESH slab data — never use stale React state for position size
       setTradePhase("Fetching market data...");
-      let freshInfo;
-      try {
-        freshInfo = await connection.getAccountInfo(slab);
-      } catch (e: any) {
-        console.error("[CLOSE POS] RPC error:", e.message);
-        setTradePhase(null);
-        alert("RPC connection failed. Please try again.");
-        return;
-      }
-      if (!freshInfo) { setTradePhase(null); return; }
-      const freshData = Buffer.from(freshInfo.data);
+      const freshData = await fetchFreshSlab(slab);
+      if (!freshData) { setTradePhase(null); return; }
 
       const userIdx = findUserAccount(freshData, publicKey, "user");
       if (userIdx === null) { setTradePhase(null); return; }
 
-      // Read FRESH position from on-chain slab — not stale React state
+      // Use FRESH on-chain position — not stale React state
       const freshAcct = parseAcctRaw(freshData, userIdx);
       if (!freshAcct || freshAcct.positionSize === 0n) {
-        console.log("[CLOSE POS] Position already closed (fresh slab data confirms size=0)");
         await refetch();
         return;
       }
 
       const reverseSize = -freshAcct.positionSize;
-      console.log("[CLOSE POS] Closing position, fresh size:", freshAcct.positionSize.toString(), "reverse:", reverseSize.toString());
-
       const lp = findFirstLP(freshData);
-      if (!lp) { console.error("[CLOSE POS] No LP found"); setTradePhase(null); return; }
+      if (!lp) { setTradePhase(null); return; }
 
       setTradePhase("Closing position...");
       await execute(async () => {
@@ -310,29 +245,21 @@ export function Trade() {
           lp.idx, lp.owner, lp.matcherProgram, lp.matcherContext,
           userIdx, reverseSize,
         );
-
-        const combined = new Transaction();
-        combined.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 }));
-        for (const tx of [crankTx, tradeTx]) {
-          for (const ix of getNonBudgetInstructions(tx)) {
-            combined.add(ix);
-          }
-        }
-        return { tx: combined };
+        return { tx: combineTxs([crankTx, tradeTx], 1_400_000) };
       });
 
-      // Wait for chain state to settle, then refetch BEFORE clearing tradePhase
-      // This prevents the Close Position button from reappearing with stale data
+      // Wait for chain to settle before clearing tradePhase
       setTradePhase("Updating positions...");
       await new Promise((r) => setTimeout(r, 2000));
       await refetch();
-      console.log("[CLOSE POS] Position close complete");
     } catch (e: any) {
-      console.error("[CLOSE POS] Error:", e.message);
+      setTradeError(e.message || "Close position failed");
     } finally {
       setTradePhase(null);
     }
   };
+
+  // ─── Derived UI state ─────────────────────────────────────────────────────
 
   const isBusy = !!tradePhase || status === "building" || status === "signing" || status === "confirming";
 
@@ -341,12 +268,46 @@ export function Trade() {
     switch (status) {
       case "building": return "Building transaction...";
       case "signing": return "Approve in wallet...";
-      case "confirming": return `Confirming on-chain${confirmElapsed > 0 ? ` (${confirmElapsed}s)` : "..."}`;
+      case "confirming": return `Confirming${confirmElapsed > 0 ? ` (${confirmElapsed}s)` : "..."}`;
       case "success": return "Confirmed!";
       case "error": return lastError?.slice(0, 60) || "Error";
       default: return null;
     }
   })();
+
+  const maxLeverage = state ? Math.floor(10000 / state.initialMarginBps) : 5;
+
+  const buttonLabel = isBusy
+    ? statusLabel
+    : !amount || Number(amount) <= 0
+      ? "Enter Amount"
+      : state?.resolved
+        ? "Market Resolved"
+        : myAccountIdx === null
+          ? `Create Account & ${orderSide === "long" ? "Long" : "Short"}`
+          : `Open ${orderSide === "long" ? "Long" : "Short"}`;
+
+  const visibleAccounts = positionsTab === "positions"
+    ? userAccounts
+    : positionsTab === "orders"
+      ? lpAccounts
+      : accounts;
+
+  // ─── Liq price estimate ───────────────────────────────────────────────────
+
+  const liqPrice = useMemo(() => {
+    if (!myAccount || !state || myAccount.positionSize === 0n || myAccount.capital <= 0n) return null;
+    const absSize = myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize;
+    if (absSize === 0n) return null;
+    const capitalPerUnit = myAccount.capital * 1_000_000n / absSize;
+    const maintReserve = myAccount.entryPrice * BigInt(state.maintenanceMarginBps) / 10_000n;
+    const price = myAccount.positionSize > 0n
+      ? myAccount.entryPrice - capitalPerUnit + maintReserve
+      : myAccount.entryPrice + capitalPerUnit - maintReserve;
+    return price > 0n ? price : null;
+  }, [myAccount, state]);
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="page">
@@ -382,18 +343,14 @@ export function Trade() {
                 {getMarketName(m.state.collateralMint)?.name || truncateAddress(m.state.collateralMint)}
                 {!getMarketName(m.state.collateralMint) && m.state.inverted && " (INV)"}
               </span>
-              {m.state.adminBurned ? (
-                <span className="badge-burned">BURNED</span>
-              ) : (
-                <span className="badge-live">ADMIN</span>
-              )}
+              {m.state.adminBurned
+                ? <span className="badge-burned">BURNED</span>
+                : <span className="badge-live">ADMIN</span>}
             </div>
             <div className="market-card-stats">
               <div>
                 <span className="text-muted">Mark</span>
-                <span className="text-cyan">
-                  ${formatPriceE6(m.state.markPriceE6)}
-                </span>
+                <span className="text-cyan">${formatPriceE6(m.state.markPriceE6)}</span>
               </div>
               <div>
                 <span className="text-muted">Traders</span>
@@ -408,34 +365,28 @@ export function Trade() {
         ))}
       </div>
 
-      {/* Loading state for selected market */}
+      {/* Loading / error states */}
       {selectedMarket && !state && loading && (
         <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
           <span className="text-cyan">Loading market data...</span>
         </div>
       )}
-
-      {/* Error state for selected market */}
       {selectedMarket && !state && !loading && error && (
         <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
           <span className="text-red">{error}</span>
           <br />
-          <button className="btn-secondary" style={{ marginTop: "1rem" }} onClick={refetch}>
-            Retry
-          </button>
+          <button className="btn-secondary" style={{ marginTop: "1rem" }} onClick={refetch}>Retry</button>
         </div>
       )}
 
-      {/* Trading Terminal */}
+      {/* ──── Trading Terminal ──── */}
       {selectedMarket && state && (
         <>
           {/* Stats bar */}
           <div className="stats-grid" style={{ marginBottom: "1.5rem" }}>
             <div className="stat-card">
               <span className="stat-label">Mark Price</span>
-              <span className="stat-value text-cyan">
-                ${formatPriceE6(state.markPriceE6)}
-              </span>
+              <span className="stat-value text-cyan">${formatPriceE6(state.markPriceE6)}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Open Interest</span>
@@ -443,15 +394,11 @@ export function Trade() {
             </div>
             <div className="stat-card">
               <span className="stat-label">Insurance Fund</span>
-              <span className="stat-value text-green">
-                {formatBigintE6(state.insuranceBalance)}
-              </span>
+              <span className="stat-value text-green">{formatBigintE6(state.insuranceBalance)}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Fee Revenue</span>
-              <span className="stat-value text-purple">
-                {formatBigintE6(state.feeRevenue)}
-              </span>
+              <span className="stat-value text-purple">{formatBigintE6(state.feeRevenue)}</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">Accounts</span>
@@ -463,279 +410,149 @@ export function Trade() {
             </div>
           </div>
 
-          {/* Terminal layout */}
           <div className="terminal-layout">
-            {/* Order form */}
+            {/* ── Order Form ── */}
             <div className="order-form">
               <div className="order-tabs">
-                <button
-                  className={`order-tab ${orderSide === "long" ? "active-long" : ""}`}
-                  onClick={() => setOrderSide("long")}
-                >
-                  Long
-                </button>
-                <button
-                  className={`order-tab ${orderSide === "short" ? "active-short" : ""}`}
-                  onClick={() => setOrderSide("short")}
-                >
-                  Short
-                </button>
+                <button className={`order-tab ${orderSide === "long" ? "active-long" : ""}`} onClick={() => setOrderSide("long")}>Long</button>
+                <button className={`order-tab ${orderSide === "short" ? "active-short" : ""}`} onClick={() => setOrderSide("short")}>Short</button>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Amount (Collateral)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="0.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
+                <input type="number" className="form-input" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </div>
 
               <div className="form-group">
-                <label className="form-label">
-                  Leverage: <span className="text-cyan">{leverage}x</span>
-                </label>
-                <input
-                  type="range"
-                  className="leverage-slider"
-                  min="1"
-                  max={Math.floor(10000 / state.initialMarginBps)}
-                  value={leverage}
-                  onChange={(e) => setLeverage(Number(e.target.value))}
-                />
+                <label className="form-label">Leverage: <span className="text-cyan">{leverage}x</span></label>
+                <input type="range" className="leverage-slider" min="1" max={maxLeverage} value={leverage} onChange={(e) => setLeverage(Number(e.target.value))} />
                 <div className="flex-between text-muted" style={{ fontSize: "0.75rem" }}>
                   <span>1x</span>
-                  <span>{Math.floor(10000 / state.initialMarginBps)}x</span>
+                  <span>{maxLeverage}x</span>
                 </div>
               </div>
 
-              <div className="glass-card" style={{ padding: "0.75rem", marginBottom: "1rem" }}>
-                <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                  <span className="text-muted">Position Size</span>
-                  <span>
-                    {amount ? formatCompact(Number(amount) * leverage) : "--"}
-                  </span>
-                </div>
-                <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                  <span className="text-muted">Trading Fee</span>
-                  <span>
-                    {amount
-                      ? formatCompact(
-                          (Number(amount) * leverage * state.tradingFeeBps) / 10000
-                        )
-                      : "--"}
-                  </span>
-                </div>
-                <div className="flex-between">
-                  <span className="text-muted">Initial Margin</span>
-                  <span>{formatBps(state.initialMarginBps)}</span>
-                </div>
+              {/* Order summary */}
+              <div className="order-summary-card">
+                <div className="flex-between"><span className="text-muted">Position Size</span><span>{amount ? formatCompact(Number(amount) * leverage) : "--"}</span></div>
+                <div className="flex-between"><span className="text-muted">Trading Fee</span><span>{amount ? formatCompact((Number(amount) * leverage * state.tradingFeeBps) / 10000) : "--"}</span></div>
+                <div className="flex-between"><span className="text-muted">Initial Margin</span><span>{formatBps(state.initialMarginBps)}</span></div>
               </div>
 
-              {/* My position info */}
+              {/* My position */}
               {myAccount && (
-                <div className="glass-card" style={{ padding: "0.75rem", marginBottom: "1rem", borderColor: myAccount.positionSize !== 0n ? (myAccount.positionSize > 0n ? "var(--alien-green, #00ff88)" : "var(--red, #ff4466)") : "var(--alien-cyan, #00d4ff)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <div className={`position-card ${myAccount.positionSize > 0n ? "position-long" : myAccount.positionSize < 0n ? "position-short" : ""}`}>
+                  <div className="flex-between" style={{ marginBottom: "0.5rem" }}>
                     <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                      {myAccount.positionSize > 0n ? (
-                        <span className="text-green">LONG</span>
-                      ) : myAccount.positionSize < 0n ? (
-                        <span className="text-red">SHORT</span>
-                      ) : (
-                        <span className="text-muted">NO POSITION</span>
-                      )}
+                      {myAccount.positionSize > 0n ? <span className="text-green">LONG</span>
+                        : myAccount.positionSize < 0n ? <span className="text-red">SHORT</span>
+                        : <span className="text-muted">NO POSITION</span>}
                     </span>
                     <span className="text-muted" style={{ fontSize: "0.7rem" }}>Account #{myAccount.index}</span>
                   </div>
-                  <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                    <span className="text-muted">Capital</span>
-                    <span className="text-cyan">{formatBigintE6(myAccount.capital)}</span>
-                  </div>
+                  <div className="flex-between"><span className="text-muted">Capital</span><span className="text-cyan">{formatBigintE6(myAccount.capital)}</span></div>
                   {myAccount.positionSize !== 0n && (
                     <>
-                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                      <div className="flex-between">
                         <span className="text-muted">Size</span>
                         <span className={myAccount.positionSize > 0n ? "text-green" : "text-red"}>
                           {formatBigintE6(myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize)}
                         </span>
                       </div>
-                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                        <span className="text-muted">Entry Price</span>
-                        <span>${formatPriceE6(myAccount.entryPrice)}</span>
-                      </div>
-                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                        <span className="text-muted">Mark Price</span>
-                        <span className="text-cyan">${formatPriceE6(state.markPriceE6)}</span>
-                      </div>
-                      <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
+                      <div className="flex-between"><span className="text-muted">Entry Price</span><span>${formatPriceE6(myAccount.entryPrice)}</span></div>
+                      <div className="flex-between"><span className="text-muted">Mark Price</span><span className="text-cyan">${formatPriceE6(state.markPriceE6)}</span></div>
+                      <div className="flex-between">
                         <span className="text-muted">PnL</span>
                         <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"} style={{ fontWeight: 600 }}>
                           {myAccount.pnl >= 0n ? "+" : ""}{formatBigintE6(myAccount.pnl)}
                         </span>
                       </div>
-                      {(() => {
-                        // Liq price estimate: price where capital + pnl = maintenance margin
-                        // notional = |size| * mark / 1e6, maint_margin = notional * maint_bps / 10000
-                        // Simplified: liq price ~ entry +/- (capital * 1e6 / |size|) adjusted for margin
-                        const absSize = myAccount.positionSize > 0n ? myAccount.positionSize : -myAccount.positionSize;
-                        if (absSize > 0n && myAccount.capital > 0n) {
-                          const capitalPerUnit = myAccount.capital * 1_000_000n / absSize;
-                          const maintReserve = myAccount.entryPrice * BigInt(state.maintenanceMarginBps) / 10_000n;
-                          const liqPrice = myAccount.positionSize > 0n
-                            ? myAccount.entryPrice - capitalPerUnit + maintReserve
-                            : myAccount.entryPrice + capitalPerUnit - maintReserve;
-                          return liqPrice > 0n ? (
-                            <div className="flex-between" style={{ marginBottom: "0.25rem" }}>
-                              <span className="text-muted">Est. Liq. Price</span>
-                              <span className="text-red" style={{ fontSize: "0.8rem" }}>${formatPriceE6(liqPrice)}</span>
-                            </div>
-                          ) : null;
-                        }
-                        return null;
-                      })()}
-                      <button
-                        className="btn-secondary"
-                        style={{ width: "100%", marginTop: "0.5rem", fontSize: "0.8rem" }}
-                        disabled={isBusy}
-                        onClick={handleClosePosition}
-                      >
+                      {liqPrice && (
+                        <div className="flex-between">
+                          <span className="text-muted">Est. Liq. Price</span>
+                          <span className="text-red" style={{ fontSize: "0.8rem" }}>${formatPriceE6(liqPrice)}</span>
+                        </div>
+                      )}
+                      <button className="btn-close-position" disabled={isBusy} onClick={handleClosePosition}>
                         {isBusy ? statusLabel : "Close Position"}
                       </button>
                     </>
                   )}
                   {myAccount.positionSize === 0n && myAccount.capital > 0n && (
-                    <div className="flex-between" style={{ marginTop: "0.25rem" }}>
+                    <div className="flex-between">
                       <span className="text-muted">PnL</span>
-                      <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"}>
-                        {formatBigintE6(myAccount.pnl)}
-                      </span>
+                      <span className={myAccount.pnl >= 0n ? "text-green" : "text-red"}>{formatBigintE6(myAccount.pnl)}</span>
                     </div>
                   )}
                 </div>
               )}
 
+              {/* Trade button */}
               {connected ? (
                 <button
                   className={orderSide === "long" ? "btn-long" : "btn-short"}
-                  style={{ width: "100%" }}
                   disabled={!amount || Number(amount) <= 0 || isBusy || state.resolved}
                   onClick={handleTrade}
-                >
-                  {isBusy
-                    ? statusLabel
-                    : !amount || Number(amount) <= 0
-                      ? "Enter Amount"
-                      : state.resolved
-                        ? "Market Resolved"
-                        : myAccountIdx === null
-                          ? `Create Account & ${orderSide === "long" ? "Long" : "Short"}`
-                          : `Open ${orderSide === "long" ? "Long" : "Short"}`}
-                </button>
+                >{buttonLabel}</button>
               ) : (
-                <button className="btn-primary" style={{ width: "100%" }} disabled>
-                  Connect Wallet
-                </button>
+                <button className="btn-primary" style={{ width: "100%" }} disabled>Connect Wallet</button>
               )}
 
-              {/* Tx feedback — persistent until dismissed */}
+              {/* Feedback cards */}
               {status === "success" && lastSignature && (
-                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--alien-green, #00ff88)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="text-green" style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-                      Trade confirmed!
-                    </span>
-                    <button
-                      onClick={clearStatus}
-                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
-                    >
-                      x
-                    </button>
+                <div className="feedback-card feedback-success">
+                  <div className="flex-between">
+                    <span className="text-green" style={{ fontWeight: 600 }}>Trade confirmed!</span>
+                    <DismissBtn onClick={clearStatus} />
                   </div>
-                  <a
-                    href={`https://solscan.io/tx/${lastSignature}?cluster=devnet`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan"
-                    style={{ fontSize: "0.75rem", wordBreak: "break-all" }}
-                  >
+                  <a href={`https://solscan.io/tx/${lastSignature}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-cyan" style={{ fontSize: "0.75rem", wordBreak: "break-all" }}>
                     {lastSignature.slice(0, 20)}...{lastSignature.slice(-8)} — View on Solscan
                   </a>
                 </div>
               )}
               {status === "confirming" && (
-                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--alien-cyan, #00d4ff)" }}>
-                  <div style={{ fontSize: "0.8rem", textAlign: "center" }}>
-                    <span className="text-cyan">Waiting for Solana confirmation...</span>
-                    {confirmElapsed > 0 && (
-                      <span className="text-muted" style={{ marginLeft: "0.5rem" }}>({confirmElapsed}s)</span>
-                    )}
+                <div className="feedback-card feedback-pending">
+                  <div style={{ textAlign: "center" }}>
+                    <span className="text-cyan">Waiting for confirmation...</span>
+                    {confirmElapsed > 0 && <span className="text-muted" style={{ marginLeft: "0.5rem" }}>({confirmElapsed}s)</span>}
                   </div>
                   {confirmElapsed > 10 && (
                     <div className="text-muted" style={{ fontSize: "0.7rem", textAlign: "center", marginTop: "0.25rem" }}>
-                      Devnet can be slow — hang tight, your tx was sent
+                      Devnet can be slow — your tx was sent
                     </div>
                   )}
                 </div>
               )}
               {status === "error" && lastError && (
-                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--red, #ff4466)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="text-red" style={{ fontSize: "0.85rem" }}>
-                      {lastError.slice(0, 120)}
-                    </span>
-                    <button
-                      onClick={clearStatus}
-                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
-                    >
-                      x
-                    </button>
+                <div className="feedback-card feedback-error">
+                  <div className="flex-between">
+                    <span className="text-red">{lastError.slice(0, 120)}</span>
+                    <DismissBtn onClick={clearStatus} />
                   </div>
                 </div>
               )}
               {tradeError && (
-                <div className="glass-card" style={{ padding: "0.75rem", marginTop: "0.75rem", borderColor: "var(--red, #ff4466)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span className="text-red" style={{ fontSize: "0.85rem" }}>
-                      {tradeError}
-                    </span>
-                    <button
-                      onClick={() => setTradeError(null)}
-                      style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "1rem", padding: "0 4px" }}
-                    >
-                      x
-                    </button>
+                <div className="feedback-card feedback-error">
+                  <div className="flex-between">
+                    <span className="text-red">{tradeError}</span>
+                    <DismissBtn onClick={() => setTradeError(null)} />
                   </div>
                 </div>
               )}
-              {error && (
-                <div className="text-red" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                  {error}
-                </div>
-              )}
+              {error && <div className="text-red" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>{error}</div>}
 
               {/* Recent transactions */}
               {txHistory.length > 0 && (
-                <div style={{ marginTop: "0.75rem" }}>
-                  <span className="text-muted" style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Recent Transactions
-                  </span>
+                <div className="tx-history">
+                  <span className="tx-history-label">Recent Transactions</span>
                   {txHistory.map((tx, i) => (
-                    <div key={tx.signature + i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.25rem 0", fontSize: "0.7rem", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                      <span className={tx.status === "confirmed" ? "text-green" : "text-red"} style={{ width: "60px" }}>
+                    <div key={tx.signature + i} className="tx-history-row">
+                      <span className={tx.status === "confirmed" ? "text-green" : "text-red"} style={{ width: "48px" }}>
                         {tx.status === "confirmed" ? "OK" : "FAIL"}
                       </span>
-                      <span className="text-muted">
-                        {new Date(tx.timestamp).toLocaleTimeString()}
-                      </span>
+                      <span className="text-muted">{new Date(tx.timestamp).toLocaleTimeString()}</span>
                       {tx.signature ? (
-                        <a
-                          href={`https://solscan.io/tx/${tx.signature}?cluster=devnet`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-cyan"
-                        >
+                        <a href={`https://solscan.io/tx/${tx.signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-cyan">
                           {tx.signature.slice(0, 8)}...
                         </a>
                       ) : (
@@ -747,29 +564,17 @@ export function Trade() {
               )}
             </div>
 
-            {/* Positions / orderbook area */}
+            {/* ── Positions Table ── */}
             <div className="terminal-main">
               <div className="tabs">
-                <button
-                  className={`tab ${positionsTab === "positions" ? "active" : ""}`}
-                  onClick={() => setPositionsTab("positions")}
-                >
-                  Positions
-                  <span className="tab-count">{userAccounts.length}</span>
+                <button className={`tab ${positionsTab === "positions" ? "active" : ""}`} onClick={() => setPositionsTab("positions")}>
+                  Positions <span className="tab-count">{userAccounts.length}</span>
                 </button>
-                <button
-                  className={`tab ${positionsTab === "orders" ? "active" : ""}`}
-                  onClick={() => setPositionsTab("orders")}
-                >
-                  LP Vaults
-                  <span className="tab-count">{lpAccounts.length}</span>
+                <button className={`tab ${positionsTab === "orders" ? "active" : ""}`} onClick={() => setPositionsTab("orders")}>
+                  LP Vaults <span className="tab-count">{lpAccounts.length}</span>
                 </button>
-                <button
-                  className={`tab ${positionsTab === "history" ? "active" : ""}`}
-                  onClick={() => setPositionsTab("history")}
-                >
-                  All Accounts
-                  <span className="tab-count">{accounts.length}</span>
+                <button className={`tab ${positionsTab === "history" ? "active" : ""}`} onClick={() => setPositionsTab("history")}>
+                  All Accounts <span className="tab-count">{accounts.length}</span>
                 </button>
               </div>
 
@@ -788,52 +593,24 @@ export function Trade() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(positionsTab === "positions"
-                      ? userAccounts
-                      : positionsTab === "orders"
-                        ? lpAccounts
-                        : accounts
-                    ).length === 0 ? (
+                    {visibleAccounts.length === 0 ? (
                       <tr>
                         <td colSpan={connected ? 8 : 7} style={{ textAlign: "center", padding: "2rem" }}>
-                          <span className="text-muted">
-                            {loading ? "Loading accounts..." : "No accounts found"}
-                          </span>
+                          <span className="text-muted">{loading ? "Loading accounts..." : "No accounts found"}</span>
                         </td>
                       </tr>
                     ) : (
-                      (positionsTab === "positions"
-                        ? userAccounts
-                        : positionsTab === "orders"
-                          ? lpAccounts
-                          : accounts
-                      ).map((acct) => {
+                      visibleAccounts.map((acct) => {
                         const isOwner = publicKey && acct.owner === publicKey.toBase58();
                         return (
                           <tr key={acct.index}>
                             <td>#{acct.index}</td>
-                            <td>
-                              <span className={acct.kind === "lp" ? "text-purple" : "text-cyan"}>
-                                {acct.kind.toUpperCase()}
-                              </span>
-                            </td>
+                            <td><span className={acct.kind === "lp" ? "text-purple" : "text-cyan"}>{acct.kind.toUpperCase()}</span></td>
                             <td>{isOwner ? <span className="text-green">YOU</span> : truncateAddress(acct.owner)}</td>
                             <td>{formatBigintE6(acct.capital)}</td>
+                            <td><span className={acct.pnl >= 0n ? "text-green" : "text-red"}>{formatBigintE6(acct.pnl)}</span></td>
                             <td>
-                              <span className={acct.pnl >= 0n ? "text-green" : "text-red"}>
-                                {formatBigintE6(acct.pnl)}
-                              </span>
-                            </td>
-                            <td>
-                              <span
-                                className={
-                                  acct.positionSize > 0n
-                                    ? "text-green"
-                                    : acct.positionSize < 0n
-                                      ? "text-red"
-                                      : ""
-                                }
-                              >
+                              <span className={acct.positionSize > 0n ? "text-green" : acct.positionSize < 0n ? "text-red" : ""}>
                                 {formatBigintE6(acct.positionSize)}
                               </span>
                             </td>
@@ -841,24 +618,10 @@ export function Trade() {
                             {connected && (
                               <td>
                                 {isOwner && acct.kind === "user" && acct.capital > 0n && acct.positionSize === 0n && (
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ padding: "4px 10px", fontSize: "0.7rem" }}
-                                    disabled={isBusy}
-                                    onClick={() => handleWithdraw(acct.index, acct.capital)}
-                                  >
-                                    Withdraw
-                                  </button>
+                                  <button className="btn-table-action" disabled={isBusy} onClick={() => handleWithdraw(acct.index, acct.capital)}>Withdraw</button>
                                 )}
                                 {isOwner && acct.kind === "user" && acct.capital === 0n && acct.positionSize === 0n && acct.pnl === 0n && (
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ padding: "4px 10px", fontSize: "0.7rem" }}
-                                    disabled={isBusy}
-                                    onClick={() => handleClose(acct.index)}
-                                  >
-                                    Close
-                                  </button>
+                                  <button className="btn-table-action" disabled={isBusy} onClick={() => handleClose(acct.index)}>Close</button>
                                 )}
                               </td>
                             )}
@@ -874,15 +637,10 @@ export function Trade() {
         </>
       )}
 
-      {/* No market selected state */}
       {!selectedMarket && !discovering && markets.length > 0 && (
         <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
-          <h3 className="text-cyan" style={{ marginBottom: "0.5rem" }}>
-            Select a Market
-          </h3>
-          <p className="text-muted">
-            Choose a market from the cards above to open the trading terminal.
-          </p>
+          <h3 className="text-cyan" style={{ marginBottom: "0.5rem" }}>Select a Market</h3>
+          <p className="text-muted">Choose a market from the cards above to open the trading terminal.</p>
         </div>
       )}
     </div>
