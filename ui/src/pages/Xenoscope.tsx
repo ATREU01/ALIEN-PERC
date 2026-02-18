@@ -45,42 +45,69 @@ function shortAddr(addr?: string): string {
 }
 
 // ─── Token Avatar ─────────────────────────────────────────────────
+// Uses SERVER-SIDE proxy for metadata to avoid CORS / Mixed Content.
+// Client never fetches from random metadata hosts directly.
+const _imgCache = new Map<string, string | null>(); // uri → imageUrl or null (failed)
+const _inflight = new Map<string, Promise<string | null>>(); // dedup concurrent requests
+
+function resolveTokenImage(uri: string): Promise<string | null> {
+  // Check cache
+  if (_imgCache.has(uri)) return Promise.resolve(_imgCache.get(uri)!);
+  // Dedup inflight
+  if (_inflight.has(uri)) return _inflight.get(uri)!;
+
+  const p = (async (): Promise<string | null> => {
+    try {
+      // Only direct HTTPS images bypass the proxy (safe)
+      if (/^https:\/\/.+\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i.test(uri)) {
+        _imgCache.set(uri, uri);
+        return uri;
+      }
+      // Use our server-side proxy — no CORS, no Mixed Content
+      const res = await fetch(`/api/xenoscope/metadata?uri=${encodeURIComponent(uri)}`);
+      if (!res.ok) { _imgCache.set(uri, null); return null; }
+      const data = await res.json();
+      const img = data?.image || null;
+      // Only use HTTPS images
+      if (img && img.startsWith("https://")) {
+        _imgCache.set(uri, img);
+        return img;
+      }
+      // Try cf-ipfs for ipfs:// images
+      if (img && img.startsWith("ipfs://")) {
+        const httpsImg = img.replace("ipfs://", "https://cf-ipfs.com/ipfs/");
+        _imgCache.set(uri, httpsImg);
+        return httpsImg;
+      }
+      _imgCache.set(uri, null);
+      return null;
+    } catch {
+      _imgCache.set(uri, null);
+      return null;
+    } finally {
+      _inflight.delete(uri);
+    }
+  })();
+
+  _inflight.set(uri, p);
+  return p;
+}
+
 function TokenAvatar({ uri, alt, size = 40 }: { uri?: string; alt: string; size?: number }) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(uri ? (_imgCache.get(uri) ?? null) : null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     if (!uri) return;
     let cancelled = false;
-
-    const fetchImg = async () => {
-      // Direct image?
-      if (uri.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
-        if (!cancelled) setImageUrl(uri);
-        return;
-      }
-      // Try metadata fetch
-      try {
-        const res = await fetch(uri);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.image && !cancelled) { setImageUrl(data.image); return; }
-        }
-      } catch { /* CORS — try proxy */ }
-      // Proxy fallback
-      try {
-        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(uri)}`;
-        const pRes = await fetch(proxy);
-        const pData = await pRes.json();
-        if (pData.contents) {
-          const meta = JSON.parse(pData.contents);
-          if (meta.image && !cancelled) { setImageUrl(meta.image); return; }
-        }
-      } catch { /* ignore */ }
-      if (!cancelled) setError(true);
-    };
-
-    fetchImg();
+    // If already cached (hit or miss), use it
+    if (_imgCache.has(uri)) {
+      if (!cancelled) setImageUrl(_imgCache.get(uri)!);
+      return;
+    }
+    resolveTokenImage(uri).then((img) => {
+      if (!cancelled) setImageUrl(img);
+    });
     return () => { cancelled = true; };
   }, [uri]);
 
@@ -96,7 +123,7 @@ function TokenAvatar({ uri, alt, size = 40 }: { uri?: string; alt: string; size?
 
   return (
     <div className="xeno-avatar" style={{ width: size, height: size }}>
-      <img src={imageUrl} alt={alt} onError={() => setError(true)} />
+      <img src={imageUrl} alt={alt} onError={() => { setError(true); _imgCache.set(uri!, null); }} />
     </div>
   );
 }
@@ -262,6 +289,12 @@ function XenoOverview({
 
   return (
     <div className="xeno-overview">
+      {/* THE POINT */}
+      <div className="xeno-tab-explainer">
+        <h3>Mission Control</h3>
+        <p>Your real-time dashboard — session volume, active traders, new token launches, and network status at a glance. The volume chart shows USD flow over the last 7 minutes, and the sidebar streams every event as it happens on Pump.fun.</p>
+      </div>
+
       {/* Stats Row */}
       <div className="xeno-stats-row">
         <StatCard
@@ -453,20 +486,29 @@ function XenoScanner({
 
     switch (activeFilter) {
       case "alpha":
+        // Alpha Radar: any buy trade (real buy activity = signal)
         filtered = events.filter(
           (e) =>
-            (e.txType === "trade" && e.isBuy && (e.solAmount || 0) > 1) ||
-            (e.marketCapSol && e.marketCapSol > 50)
+            (e.txType === "trade" && e.isBuy) ||
+            (e.txType === "migrate")
         );
         break;
       case "risk":
+        // High Risk: brand-new launches and very early tokens
         filtered = events.filter(
-          (e) => e.txType === "create" || (e.marketCapSol && e.marketCapSol < 10)
+          (e) =>
+            e.txType === "create" ||
+            (e.txType === "trade" && e.isBuy && (e.solAmount || 0) < 0.5)
         );
         break;
       case "safe":
+        // Recommended: tokens with bonding curve activity (approaching graduation)
+        // or larger buy events (established momentum)
         filtered = events.filter(
-          (e) => e.vSolInBondingCurve && e.vSolInBondingCurve < 30
+          (e) =>
+            (e.vSolInBondingCurve && e.vSolInBondingCurve > 0) ||
+            (e.txType === "trade" && e.isBuy && (e.solAmount || 0) > 0.5) ||
+            e.txType === "migrate"
         );
         break;
     }
@@ -500,6 +542,12 @@ function XenoScanner({
 
   return (
     <div className="xeno-scanner">
+      {/* THE POINT */}
+      <div className="xeno-tab-explainer">
+        <h3>Find Signals in the Noise</h3>
+        <p>Thousands of tokens launch every hour on Pump.fun. The Scanner filters them into three strategies: <strong>Alpha Radar</strong> finds tokens with real buy activity, <strong>High Risk</strong> catches brand-new launches before anyone else, and <strong>Recommended</strong> highlights tokens approaching bonding curve graduation. Copy any CA with one click.</p>
+      </div>
+
       {/* Header */}
       <div className="xeno-scanner-header">
         <div>
@@ -705,6 +753,12 @@ function XenoFeed({
 
   return (
     <div className="xeno-feed-page">
+      {/* THE POINT */}
+      <div className="xeno-tab-explainer">
+        <h3>The Raw Firehose</h3>
+        <p>Every single event on Pump.fun streams here in real-time — new token creations, buy/sell trades, and bonding curve migrations. Filter by event type, pause the feed to inspect something, and use the stats bar to gauge current market tempo. This is the unfiltered signal.</p>
+      </div>
+
       {/* Header */}
       <div className="xeno-feed-header">
         <div>
@@ -876,6 +930,12 @@ function XenoAnalytics({
 
   return (
     <div className="xeno-analytics">
+      {/* THE POINT */}
+      <div className="xeno-tab-explainer">
+        <h3>Read the Market</h3>
+        <p>Understand what's actually happening — volume trends over time, buy vs. sell pressure, transaction type breakdown, and the top tokens by volume this session. If buys are outpacing sells, the market is heating up. Use this to time your entries and exits.</p>
+      </div>
+
       <h2 className="xeno-section-title">Analytics</h2>
       <p className="xeno-section-sub">Market insights and statistics</p>
 
@@ -1086,6 +1146,12 @@ function XenoTrades({
 
   return (
     <div className="xeno-trades">
+      {/* THE POINT */}
+      <div className="xeno-tab-explainer">
+        <h3>On-Chain Receipts</h3>
+        <p>Every buy and sell across Pump.fun, sortable by time, amount, or token. Search for any token or contract address, copy transaction hashes, and click through to Solscan for full on-chain verification. This is your audit trail.</p>
+      </div>
+
       {/* Header */}
       <div className="xeno-trades-header">
         <div>
