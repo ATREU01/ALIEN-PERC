@@ -3430,3 +3430,252 @@ input:focus, select:focus {
     padding: 8px 12px !important;
   }
 }
+
+/* ============================================================================
+   ALIENTOR LAUNCHPAD — Mainnet Token Launch Platform Styles
+   ============================================================================ */
+
+/* Accent nav pill for Launchpad */
+.nav-pill.nav-pill-accent {
+  color: var(--cyan);
+  border: 1px solid rgba(0, 200, 255, 0.25);
+  background: rgba(0, 200, 255, 0.04);
+}
+.nav-pill.nav-pill-accent:hover {
+  background: rgba(0, 200, 255, 0.10);
+  border-color: rgba(0, 200, 255, 0.4);
+}
+.nav-pill.nav-pill-accent.active {
+  background: rgba(0, 200, 255, 0.15);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0, 200, 255, 0.15);
+}
+
+/* Mainnet badge */
+.badge-mainnet {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  background: rgba(0, 200, 255, 0.08);
+  border: 1px solid rgba(0, 200, 255, 0.25);
+  text-transform: uppercase;
+}
+
+/* Launchpad stats bar */
+.launchpad-stats-bar {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.launchpad-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.launchpad-stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.launchpad-stat-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Network badge inline (inside form) */
+.launchpad-network-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-bottom: 1.25rem;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 200, 255, 0.04);
+  border: 1px solid rgba(0, 200, 255, 0.15);
+  font-size: 0.82rem;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+}
+
+/* Socials grid */
+.launchpad-socials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Strategy selection grid */
+.launchpad-strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.launchpad-strategy-card {
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.launchpad-strategy-card:hover {
+  border-color: var(--border-bright);
+  background: var(--bg-hover);
+}
+.launchpad-strategy-card.active {
+  border-color: var(--cyan);
+  background: rgba(0, 200, 255, 0.04);
+  box-shadow: 0 0 16px rgba(0, 200, 255, 0.06);
+}
+
+.launchpad-strategy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.launchpad-strategy-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.launchpad-strategy-check {
+  color: var(--cyan);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.launchpad-strategy-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+/* Allocation bars */
+.launchpad-allocation-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.launchpad-alloc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.launchpad-alloc-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  min-width: 90px;
+  white-space: nowrap;
+}
+
+.launchpad-alloc-bar-track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.launchpad-alloc-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.launchpad-alloc-marketMaking { background: var(--alien-green); }
+.launchpad-alloc-buybackBurn { background: var(--red); }
+.launchpad-alloc-liquidity { background: var(--cyan); }
+.launchpad-alloc-creatorRevenue { background: var(--purple); }
+
+.launchpad-alloc-pct {
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Token cards grid */
+.launchpad-tokens-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.launchpad-token-card {
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s;
+}
+.launchpad-token-card:hover {
+  border-color: var(--border-bright);
+}
+
+.launchpad-token-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.launchpad-token-symbol {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--alien-green);
+}
+
+.launchpad-token-name {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.launchpad-token-mint {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.launchpad-token-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .launchpad-stats-bar {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .launchpad-strategy-grid {
+    grid-template-columns: 1fr;
+  }
+  .launchpad-socials-grid {
+    grid-template-columns: 1fr;
+  }
+}

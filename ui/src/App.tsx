@@ -6,6 +6,7 @@ import { AlienChat } from "./components/AlienChat";
 import { Home } from "./pages/Home";
 import { Trade } from "./pages/Trade";
 import { Earn } from "./pages/Earn";
+import { Launchpad } from "./pages/Launchpad";
 import { Register } from "./pages/Register";
 import { Indexer } from "./pages/Indexer";
 import { Guide } from "./pages/Guide";
@@ -40,6 +41,8 @@ function AppContent() {
         return <Trade />;
       case ROUTES.EARN:
         return <Earn />;
+      case ROUTES.LAUNCHPAD:
+        return <Launchpad />;
       case ROUTES.REGISTER:
         return <Register />;
       case ROUTES.INDEXER:

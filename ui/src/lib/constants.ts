@@ -53,6 +53,7 @@ export const ROUTES = {
   HOME: "",
   TRADE: "trade",
   EARN: "earn",
+  LAUNCHPAD: "launchpad",
   REGISTER: "register",
   INDEXER: "indexer",
   GUIDE: "guide",
