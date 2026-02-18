@@ -957,9 +957,17 @@ input:focus, select:focus {
   text-transform: uppercase;
 }
 
-.btn-long:hover {
+.btn-long:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+}
+
+.btn-long:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.3), rgba(0, 204, 106, 0.3));
 }
 
 .btn-short {
@@ -976,9 +984,17 @@ input:focus, select:focus {
   text-transform: uppercase;
 }
 
-.btn-short:hover {
+.btn-short:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 0 30px rgba(255, 45, 85, 0.3);
+}
+
+.btn-short:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: linear-gradient(135deg, rgba(255, 45, 85, 0.3), rgba(204, 26, 61, 0.3));
 }
 
 .btn-deposit {

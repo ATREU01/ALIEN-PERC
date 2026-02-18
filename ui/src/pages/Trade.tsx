@@ -263,7 +263,7 @@ export function Trade() {
 
   // Handle close position — trade in reverse direction to flatten
   const handleClosePosition = async () => {
-    if (!publicKey || !selectedMarket || !rawData || !myAccount || !myAccountIdx || tradePhase) return;
+    if (!publicKey || !selectedMarket || !rawData || !myAccount || myAccountIdx === null || tradePhase) return;
     if (myAccount.positionSize === 0n) return;
 
     const slab = new PublicKey(selectedMarket);
