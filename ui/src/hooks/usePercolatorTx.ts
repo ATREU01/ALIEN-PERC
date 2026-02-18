@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Transaction, Keypair, PublicKey, type Connection } from "@solana/web3.js";
+import { parsePercError } from "../lib/errors";
 
 /**
  * Poll-based transaction confirmation (no WebSocket needed).
@@ -20,8 +21,8 @@ async function pollConfirmTransaction(
   lastValidBlockHeight: number,
   commitment: "confirmed" | "finalized" = "confirmed",
 ): Promise<{ err: any } | null> {
-  const POLL_INTERVAL_MS = 2000;
-  const MAX_POLLS = 60; // 2 minutes max
+  const POLL_INTERVAL_MS = 1000;
+  const MAX_POLLS = 90; // 90 seconds max
 
   for (let i = 0; i < MAX_POLLS; i++) {
     // Check if blockhash has expired
@@ -55,14 +56,14 @@ async function pollConfirmTransaction(
  * Extract a human-readable error from a Solana simulation result.
  */
 function extractSimError(logs: string[] | null, err: any): string {
-  // Look for program error in logs
+  // Try Percolator-specific error parsing first (maps codes to human-readable messages)
+  const percErr = parsePercError(logs, err);
+  if (percErr) return percErr;
+
+  // Fallback: scan logs for common patterns
   if (logs) {
     for (const line of logs) {
       if (line.includes("Program log: Error:")) return line.replace("Program log: Error: ", "");
-      if (line.includes("custom program error")) {
-        const match = line.match(/custom program error: (0x[0-9a-fA-F]+)/);
-        if (match) return `Program error: ${match[1]}`;
-      }
       if (line.includes("insufficient")) return line;
       if (line.includes("already in use")) return "Account already in use";
     }
@@ -157,11 +158,25 @@ export function usePercolatorTx() {
           console.log("[TX SIM LOGS]", simResult.value.logs.join("\n"));
         }
 
+        // Refresh blockhash right before wallet signs — prevents expiration
+        // during simulation delay, wallet approval delay, and network propagation.
+        console.log("[TX] Refreshing blockhash before sending...");
+        const { blockhash: freshHash, lastValidBlockHeight: freshValidHeight } =
+          await connection.getLatestBlockhash("confirmed");
+        tx.recentBlockhash = freshHash;
+        // Re-sign with extra keypairs since blockhash changed (invalidates old sigs)
+        if (extraSigners?.length) {
+          console.log("[TX] Re-signing with", extraSigners.length, "extra keypair(s) for fresh blockhash");
+          tx.partialSign(...extraSigners);
+        }
+        console.log("[TX] Fresh blockhash:", freshHash.slice(0, 12) + "...", "validUntil:", freshValidHeight);
+
         setStatus("signing");
         console.log("[TX] Requesting wallet signature...");
-        // Use skipPreflight since we already simulated above
+        // skipPreflight since we already simulated; maxRetries for reliability
         const signature = await sendTransaction(tx, connection, {
           skipPreflight: true,
+          maxRetries: 3,
         });
         console.log("[TX] Sent! Signature:", signature);
 
@@ -176,8 +191,8 @@ export function usePercolatorTx() {
         const confirmError = await pollConfirmTransaction(
           connection,
           signature,
-          blockhash,
-          lastValidBlockHeight,
+          freshHash,
+          freshValidHeight,
           "confirmed",
         );
         if (confirmTimerRef.current) {
@@ -186,7 +201,8 @@ export function usePercolatorTx() {
         }
 
         if (confirmError?.err) {
-          const errMsg = `Transaction failed on-chain: ${JSON.stringify(confirmError.err)}`;
+          const percConfirmErr = parsePercError(null, confirmError.err);
+          const errMsg = percConfirmErr || `Transaction failed on-chain: ${JSON.stringify(confirmError.err)}`;
           console.error("[TX CONFIRM FAILED]", errMsg);
           setLastError(errMsg);
           setStatus("error");
@@ -207,15 +223,18 @@ export function usePercolatorTx() {
           confirmTimerRef.current = null;
         }
         let errMsg = e?.message || "Transaction failed";
-        // Extract useful info from Solana program errors
-        if (errMsg.includes("custom program error")) {
-          const match = errMsg.match(/custom program error: (0x[0-9a-fA-F]+)/);
-          if (match) errMsg = `Program error: ${match[1]}`;
+        // Try Percolator error parsing from logs or message
+        const percErr = parsePercError(e?.logs || null, null);
+        if (percErr) {
+          errMsg = percErr;
+        } else if (errMsg.includes("custom program error")) {
+          const logsParsed = parsePercError([errMsg], null);
+          if (logsParsed) errMsg = logsParsed;
         }
         // Clean up wallet adapter noise
         errMsg = errMsg
           .replace("WalletSendTransactionError: ", "")
-          .replace("Unexpected error", "Transaction simulation failed — check console for details");
+          .replace("Unexpected error", "Transaction failed — check console for details");
         console.error("[TX ERROR]", errMsg, e);
         if (e?.logs) console.error("[TX ERROR LOGS]", e.logs);
         setLastError(errMsg);
