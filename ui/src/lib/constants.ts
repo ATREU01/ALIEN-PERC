@@ -54,6 +54,7 @@ export const ROUTES = {
   TRADE: "trade",
   EARN: "earn",
   LAUNCHPAD: "launchpad",
+  XENOSCOPE: "xenoscope",
   REGISTER: "register",
   INDEXER: "indexer",
   GUIDE: "guide",

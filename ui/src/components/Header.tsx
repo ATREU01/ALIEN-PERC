@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { route: ROUTES.TRADE, label: "Trade" },
   { route: ROUTES.EARN, label: "Earn" },
   { route: ROUTES.LAUNCHPAD, label: "Launchpad", accent: true },
+  { route: ROUTES.XENOSCOPE, label: "Xenoscope", xeno: true },
   { route: ROUTES.REGISTER, label: "Register" },
   { route: ROUTES.INDEXER, label: "Indexer" },
   { route: ROUTES.GUIDE, label: "Guide" },
@@ -47,7 +48,7 @@ export function Header({ currentRoute, onNavigate, onOpenChat }: HeaderProps) {
           {NAV_ITEMS.map((item) => (
             <button
               key={item.route}
-              className={`nav-pill ${currentRoute === item.route ? "active" : ""} ${item.accent ? "nav-pill-accent" : ""}`}
+              className={`nav-pill ${currentRoute === item.route ? "active" : ""} ${item.accent ? "nav-pill-accent" : ""} ${(item as any).xeno ? "nav-pill-xeno" : ""}`}
               onClick={() => onNavigate(item.route)}
             >
               {item.label}
