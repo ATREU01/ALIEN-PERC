@@ -681,8 +681,16 @@ function ScannerCard({
           ? "xeno-badge-safe"
           : "xeno-badge-trending";
 
+  const pumpUrl = mint ? `https://pump.fun/${mint}` : undefined;
+
   return (
-    <div className={`xeno-scanner-card ${isHot ? "hot" : ""}`}>
+    <a
+      className={`xeno-scanner-card xeno-clickable-row ${isHot ? "hot" : ""}`}
+      href={pumpUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => { if (!pumpUrl) e.preventDefault(); }}
+    >
       <div className="xeno-scanner-card-top">
         <div className="xeno-scanner-card-info">
           <TokenAvatar uri={uri} alt={name} size={44} />
@@ -706,13 +714,13 @@ function ScannerCard({
       <div className="xeno-scanner-card-bottom">
         <span className="xeno-scanner-card-time">{time}</span>
         {mint && (
-          <button className="xeno-copy-btn" onClick={copyCA}>
+          <button className="xeno-copy-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); copyCA(); }}>
             {copied ? "Copied!" : "Copy CA"}
           </button>
         )}
       </div>
       {isHot && <div className="xeno-hot-bar" />}
-    </div>
+    </a>
   );
 }
 
@@ -849,8 +857,16 @@ function FeedRow({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
   };
   const { label, cls } = getTypeInfo();
 
+  const pumpUrl = event.mint ? `https://pump.fun/${event.mint}` : undefined;
+
   return (
-    <div className="xeno-feed-row">
+    <a
+      className="xeno-feed-row xeno-clickable-row"
+      href={pumpUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => { if (!pumpUrl) e.preventDefault(); }}
+    >
       <TokenAvatar uri={event.uri} alt={event.name || "Token"} size={36} />
       <div className="xeno-feed-row-info">
         <span className="xeno-feed-row-name">
@@ -868,7 +884,7 @@ function FeedRow({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
         <div className="xeno-feed-row-amount" />
       )}
       <span className="xeno-feed-row-time">{timeAgo(event.timestamp)}</span>
-    </div>
+    </a>
   );
 }
 
@@ -1229,13 +1245,18 @@ function XenoTrades({
                       </span>
                     </td>
                     <td>
-                      <div className="xeno-trade-token-cell">
+                      <a
+                        className="xeno-trade-token-cell xeno-clickable-row"
+                        href={trade.mint ? `https://pump.fun/${trade.mint}` : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         <TokenAvatar uri={trade.uri} alt={trade.name || "Token"} size={32} />
                         <div>
                           <span className="xeno-trade-name">{trade.name || trade.symbol || "Unknown"}</span>
                           <span className="xeno-trade-addr">{shortAddr(trade.mint)}</span>
                         </div>
-                      </div>
+                      </a>
                     </td>
                     <td className="right">
                       <div className="xeno-trade-amount">
@@ -1324,8 +1345,16 @@ function FeedItem({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
     }
   };
 
+  const pumpUrl = event.mint ? `https://pump.fun/${event.mint}` : undefined;
+
   return (
-    <div className="xeno-sidebar-feed-item">
+    <a
+      className="xeno-sidebar-feed-item xeno-clickable-row"
+      href={pumpUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => { if (!pumpUrl) e.preventDefault(); }}
+    >
       <TokenAvatar uri={event.uri} alt={event.name || "Token"} size={34} />
       <div className="xeno-sidebar-feed-info">
         <span className="xeno-sidebar-feed-name">
@@ -1334,7 +1363,7 @@ function FeedItem({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
         <div className="xeno-sidebar-feed-meta">
           <span className="xeno-sidebar-feed-type" style={{ color: cfg.color }}>{cfg.label}</span>
           {event.mint && (
-            <button className="xeno-sidebar-feed-copy" onClick={copyMint}>
+            <button className="xeno-sidebar-feed-copy" onClick={(e) => { e.preventDefault(); e.stopPropagation(); copyMint(); }}>
               {copied ? "✓" : shortAddr(event.mint)}
             </button>
           )}
@@ -1346,6 +1375,6 @@ function FeedItem({ event, solPrice }: { event: PumpEvent; solPrice: number }) {
         ) : null}
         <span className="xeno-sidebar-feed-time">{timeAgo(event.timestamp)}</span>
       </div>
-    </div>
+    </a>
   );
 }
