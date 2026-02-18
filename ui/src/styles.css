@@ -3452,6 +3452,30 @@ input:focus, select:focus {
   box-shadow: 0 0 12px rgba(0, 200, 255, 0.15);
 }
 
+/* Nav pill inline badge (BETA, NEW, etc.) */
+.nav-badge {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 5px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  line-height: 1.4;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(0, 200, 255, 0.15), rgba(168, 85, 247, 0.15));
+  border: 1px solid rgba(0, 200, 255, 0.3);
+  color: var(--cyan);
+  vertical-align: super;
+  text-transform: uppercase;
+  pointer-events: none;
+  animation: nav-badge-pulse 3s ease-in-out infinite;
+}
+
+@keyframes nav-badge-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; border-color: rgba(0, 200, 255, 0.6); }
+}
+
 /* Mainnet badge */
 .badge-mainnet {
   display: inline-flex;

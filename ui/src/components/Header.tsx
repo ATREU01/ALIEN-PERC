@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { route: ROUTES.HOME, label: "Home" },
   { route: ROUTES.TRADE, label: "Trade" },
   { route: ROUTES.EARN, label: "Earn" },
-  { route: ROUTES.LAUNCHPAD, label: "Launchpad", accent: true },
+  { route: ROUTES.LAUNCHPAD, label: "Launchpad", accent: true, badge: "BETA" },
   { route: ROUTES.XENOSCOPE, label: "Xenoscope", xeno: true },
   { route: ROUTES.REGISTER, label: "Register" },
   { route: ROUTES.INDEXER, label: "Indexer" },
@@ -52,6 +52,7 @@ export function Header({ currentRoute, onNavigate, onOpenChat }: HeaderProps) {
               onClick={() => onNavigate(item.route)}
             >
               {item.label}
+              {item.badge && <span className="nav-badge">{item.badge}</span>}
             </button>
           ))}
         </nav>
@@ -92,6 +93,7 @@ export function Header({ currentRoute, onNavigate, onOpenChat }: HeaderProps) {
               onClick={() => handleNav(item.route)}
             >
               {item.label}
+              {item.badge && <span className="nav-badge">{item.badge}</span>}
             </button>
           ))}
           <button
