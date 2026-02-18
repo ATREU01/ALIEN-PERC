@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, extname, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, generateKeyPairSync } from "node:crypto";
+import { getSolPrice, getSessionStats, resolveTokenMetadata, fetchPumpTokenData, searchDexScreener, getJupiterPrice, incrementStat } from "./xenoscope/xenoscope-engine.js";
 
 // ─── Zero external deps: built-in ed25519 keypair + base58 ──────
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -252,9 +253,18 @@ Alientor Launchpad (MAINNET - pump.fun):
 - Graduation tracking: monitors bonding curve progress to PumpSwap
 - IMPORTANT: The launchpad operates on MAINNET, while percolator trading is on DEVNET
 
+Xenoscope — Signal Intelligence Array (MAINNET - Pump.fun WebSocket):
+- Real-time blockchain monitoring dashboard with live Pump.fun WebSocket stream
+- 5 sub-tabs: Overview (dashboard + volume chart + migrations + live feed sidebar), Scanner (Alpha/High Risk/Recommended strategies), Live Feed (full event stream with filters), Analytics (volume charts, pie charts, top tokens, buy/sell ratios), Trades (sortable/filterable trade table with Solscan links)
+- Direct WebSocket connection to wss://pumpportal.fun/api/data for live token events (creates, trades, migrations)
+- Alpha Scanner: filters tokens by momentum (>1 SOL buys, >50 SOL mcap), risk (new launches, <10 SOL mcap), or safety (near graduation, <30 SOL remaining in curve)
+- Real-time SOL/USD price from CoinGecko (server-cached at /api/xenoscope/sol-price)
+- Server-side proxies: pump.fun token data, DexScreener search, Jupiter price lookup, token metadata resolution
+- IMPORTANT: Xenoscope operates on MAINNET (same as Launchpad), while percolator trading is on DEVNET
+
 If asked about prices, say you analyze protocol mechanics, not price predictions. Remind users this is experimental with no intrinsic value when appropriate.
 
-Navigation: When your answer relates to a specific page, include a navigation tag at the end of your response. Use exactly this format: [NAV:trade], [NAV:earn], [NAV:launchpad], [NAV:register], [NAV:indexer], or [NAV:guide]. Only include one if it's directly relevant. Example: if someone asks how to launch a token, explain and end with [NAV:launchpad]. If someone asks how to open a position, explain and end with [NAV:trade].
+Navigation: When your answer relates to a specific page, include a navigation tag at the end of your response. Use exactly this format: [NAV:trade], [NAV:earn], [NAV:launchpad], [NAV:xenoscope], [NAV:register], [NAV:indexer], or [NAV:guide]. Only include one if it's directly relevant. Example: if someone asks how to launch a token, explain and end with [NAV:launchpad]. If someone asks how to open a position, explain and end with [NAV:trade]. If someone asks about scanning tokens, monitoring the market, or live events, end with [NAV:xenoscope].
 
 You have access to REAL-TIME market data from the Solana blockchain. When market context is provided, use it to give specific, data-driven answers about current market state, open interest, insurance fund levels, and number of active accounts. This makes you truly intelligent — not just a chatbot, but an AI with live on-chain awareness.`;
 
@@ -488,7 +498,7 @@ createServer(async (req, res) => {
   if (req.url === "/api/chat" && req.method === "POST") return handleChat(req, res);
   if (req.url === "/api/health") {
     res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
-    return res.end(JSON.stringify({ status: "ok", ai: !!process.env.ANTHROPIC_API_KEY, launchpad: true }));
+    return res.end(JSON.stringify({ status: "ok", ai: !!process.env.ANTHROPIC_API_KEY, launchpad: true, xenoscope: true }));
   }
 
   // ─── CORS preflight for launchpad APIs ─────────────────────────
@@ -801,6 +811,122 @@ createServer(async (req, res) => {
     }));
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // XENOSCOPE API ROUTES (Signal Intelligence — Solana Mainnet)
+  // ═══════════════════════════════════════════════════════════════
+
+  // CORS preflight for xenoscope APIs
+  if (req.url?.startsWith("/api/xenoscope") && req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    return res.end();
+  }
+
+  // --- GET /api/xenoscope/sol-price ---
+  // Server-side cached SOL/USD price (avoids CoinGecko CORS/rate limits)
+  if (urlPath_ === "/api/xenoscope/sol-price" && req.method === "GET") {
+    incrementStat("priceQueries");
+    const priceData = getSolPrice();
+    res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+    return res.end(JSON.stringify({
+      price: priceData.price,
+      updatedAt: priceData.updatedAt,
+      freshness: priceData.updatedAt > 0 ? Date.now() - priceData.updatedAt : null,
+      network: "mainnet",
+    }));
+  }
+
+  // --- GET /api/xenoscope/stats ---
+  // Xenoscope session statistics
+  if (urlPath_ === "/api/xenoscope/stats" && req.method === "GET") {
+    const stats = getSessionStats();
+    res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    return res.end(JSON.stringify(stats));
+  }
+
+  // --- GET /api/xenoscope/metadata?uri=... ---
+  // Server-side token metadata resolution (avoids CORS)
+  if (urlPath_ === "/api/xenoscope/metadata" && req.method === "GET") {
+    const uri = urlParams.get("uri");
+    if (!uri) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Missing uri parameter" }));
+    }
+
+    try {
+      const metadata = await resolveTokenMetadata(uri);
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify(metadata || { error: "Could not resolve metadata" }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // --- GET /api/xenoscope/pump/:mint ---
+  // Proxy pump.fun token data for Xenoscope (avoids CORS)
+  if (urlPath_.startsWith("/api/xenoscope/pump/") && req.method === "GET") {
+    const mint = urlPath_.replace("/api/xenoscope/pump/", "").trim();
+    if (!mint || mint.length < 32) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Invalid mint address" }));
+    }
+
+    try {
+      const pumpData = await fetchPumpTokenData(mint);
+      if (!pumpData) {
+        res.writeHead(404, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Token not found on pump.fun" }));
+      }
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify(pumpData));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Pump.fun upstream error" }));
+    }
+  }
+
+  // --- GET /api/xenoscope/search?q=... ---
+  // Search tokens via DexScreener (Solana only)
+  if (urlPath_ === "/api/xenoscope/search" && req.method === "GET") {
+    const query = urlParams.get("q");
+    if (!query || query.length < 2) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Query too short (min 2 chars)" }));
+    }
+
+    try {
+      const results = await searchDexScreener(query);
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ pairs: results || [], network: "mainnet" }));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "DexScreener upstream error" }));
+    }
+  }
+
+  // --- GET /api/xenoscope/price/:mint ---
+  // Jupiter price lookup for a specific token
+  if (urlPath_.startsWith("/api/xenoscope/price/") && req.method === "GET") {
+    const mint = urlPath_.replace("/api/xenoscope/price/", "").trim();
+    if (!mint || mint.length < 32) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Invalid mint address" }));
+    }
+
+    try {
+      const priceData = await getJupiterPrice(mint);
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify(priceData || { error: "Price not available" }));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Jupiter upstream error" }));
+    }
+  }
+
   // Static files
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/index.html";
@@ -840,8 +966,10 @@ createServer(async (req, res) => {
   console.log("──────────────────────────────────────────────");
   console.log(`  Percolator:  DEVNET  → /api/rpc`);
   console.log(`  Launchpad:   MAINNET → /api/rpc-mainnet`);
+  console.log(`  Xenoscope:   MAINNET (signal intelligence)`);
   console.log(`  Fee Wallet:  ${ALIENTOR_FEE_WALLET ? ALIENTOR_FEE_WALLET.slice(0, 12) + "..." : "NOT SET (add ALIENTOR_FEE_WALLET)"}`);
   console.log(`  Fee Rate:    ${ALIENTOR_FEE_BPS} bps (1%)`);
+
   console.log(`  Vault:       ${vanityVault.size} active entries`);
   console.log(`  Tokens:      ${registeredTokens.length} registered`);
   console.log("──────────────────────────────────────────────");

@@ -3974,3 +3974,1331 @@ input:focus, select:focus {
     padding: 1rem;
   }
 }
+
+/* ============================================================================
+   XENOSCOPE — Alientor Signal Intelligence Array
+   Real-time blockchain monitoring, scanning, analytics & trading intelligence
+   Network: Solana MAINNET (Pump.fun)
+   ============================================================================ */
+
+/* ── Page Layout ── */
+.xeno-page {
+  padding-bottom: 3rem;
+}
+
+.xeno-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.xeno-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.xeno-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.xeno-logo-block {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.xeno-logo-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--purple-glow);
+  border: 1px solid rgba(155, 109, 255, 0.2);
+  border-radius: var(--radius-md);
+}
+
+.xeno-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--purple);
+  letter-spacing: 0.1em;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.xeno-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+}
+
+/* ── Connection Badge ── */
+.xeno-connection-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  border: 1px solid;
+}
+
+.xeno-connection-badge.online {
+  background: rgba(0, 214, 143, 0.08);
+  border-color: rgba(0, 214, 143, 0.25);
+  color: var(--green);
+}
+
+.xeno-connection-badge.offline {
+  background: rgba(239, 68, 102, 0.08);
+  border-color: rgba(239, 68, 102, 0.25);
+  color: var(--red);
+}
+
+.xeno-connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-glow 2s infinite;
+}
+
+/* ── Sub-Tab Navigation ── */
+.xeno-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+}
+
+.xeno-tab {
+  flex: 1;
+  min-width: 90px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: calc(var(--radius-lg) - 4px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.xeno-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.xeno-tab.active {
+  background: var(--purple);
+  color: #000;
+  box-shadow: 0 0 20px rgba(155, 109, 255, 0.25);
+}
+
+/* ── Content Area ── */
+.xeno-content {
+  min-height: 400px;
+}
+
+/* ── Stats Row (4-column) ── */
+.xeno-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.xeno-stat-card {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.xeno-stat-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.xeno-stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+
+.xeno-stat-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ── Overview Grid ── */
+.xeno-overview-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Panel Headers ── */
+.xeno-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+/* ── Chart Container ── */
+.xeno-chart-panel {
+  padding: 1.5rem;
+}
+
+.xeno-chart-container {
+  width: 100%;
+}
+
+/* ── Feed Sidebar ── */
+.xeno-feed-sidebar {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+}
+
+.xeno-feed-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.xeno-feed-list::-webkit-scrollbar {
+  width: 4px;
+}
+.xeno-feed-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+/* ── Live Dot ── */
+.xeno-live-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+  margin-right: 4px;
+}
+
+.xeno-live-dot.on {
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+  animation: pulse-glow 2s infinite;
+}
+
+/* ── Sidebar Feed Item ── */
+.xeno-sidebar-feed-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.xeno-sidebar-feed-item:hover {
+  background: var(--bg-hover);
+}
+
+.xeno-sidebar-feed-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.xeno-sidebar-feed-name {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.xeno-sidebar-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.xeno-sidebar-feed-type {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.xeno-sidebar-feed-copy {
+  font-size: 0.62rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  padding: 1px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.xeno-sidebar-feed-copy:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.xeno-sidebar-feed-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.xeno-sidebar-feed-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.xeno-sidebar-feed-time {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+/* ── Migrations Panel ── */
+.xeno-migrations-panel {
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Tables ── */
+.xeno-table-wrap {
+  overflow-x: auto;
+}
+
+.xeno-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.xeno-table thead {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.xeno-table th {
+  padding: 10px 16px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.xeno-table th.right {
+  text-align: right;
+}
+
+.xeno-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.xeno-table th.sortable:hover {
+  color: var(--text-primary);
+}
+
+.xeno-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  vertical-align: middle;
+}
+
+.xeno-table td.right {
+  text-align: right;
+}
+
+.xeno-table td.mono {
+  font-family: var(--font-mono);
+}
+
+.xeno-table td.muted {
+  color: var(--text-secondary);
+}
+
+.xeno-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.xeno-table-empty {
+  text-align: center;
+  padding: 3rem 1rem !important;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.xeno-token-cell {
+  display: flex;
+  flex-direction: column;
+}
+
+.xeno-token-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.xeno-token-addr {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.xeno-link-btn {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(155, 109, 255, 0.1);
+  color: var(--purple);
+  border: 1px solid rgba(155, 109, 255, 0.2);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.xeno-link-btn:hover {
+  background: var(--purple);
+  color: #000;
+}
+
+/* ── Token Avatar ── */
+.xeno-avatar {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.xeno-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.xeno-avatar-fallback {
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Scanner ── */
+.xeno-scanner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.xeno-section-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.xeno-section-sub {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+}
+
+.xeno-source-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+
+.xeno-toggle-btn {
+  padding: 6px 18px;
+  border-radius: 18px;
+  border: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  font-family: var(--font-sans);
+}
+
+.xeno-toggle-btn.active {
+  background: var(--purple);
+  color: #000;
+  box-shadow: 0 0 12px rgba(155, 109, 255, 0.3);
+}
+
+/* ── Filter Bar ── */
+.xeno-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.xeno-filter-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.xeno-filter-chip {
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.xeno-filter-chip:hover {
+  border-color: var(--border-bright);
+  color: var(--text-primary);
+}
+
+.xeno-filter-chip.active {
+  background: rgba(155, 109, 255, 0.1);
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.xeno-filter-chip.active-buy {
+  background: rgba(0, 214, 143, 0.1);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.xeno-filter-chip.active-sell {
+  background: rgba(239, 68, 102, 0.1);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.xeno-filter-count {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Search Input ── */
+.xeno-search-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-muted);
+  min-width: 180px;
+}
+
+.xeno-search-input input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.xeno-search-input input::placeholder {
+  color: var(--text-dim);
+}
+
+/* ── Token Cards Grid ── */
+.xeno-token-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.xeno-empty-grid {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1rem;
+  color: var(--text-muted);
+  gap: 1rem;
+}
+
+/* ── Scanner Card ── */
+.xeno-scanner-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+
+.xeno-scanner-card:hover {
+  border-color: rgba(155, 109, 255, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.xeno-scanner-card.hot::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--alien-green), transparent);
+  opacity: 0.6;
+}
+
+.xeno-scanner-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.xeno-scanner-card-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.xeno-scanner-card-name {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  display: block;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xeno-scanner-card-symbol {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+.xeno-scanner-card-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.xeno-metric-box {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.xeno-metric-label {
+  display: block;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.xeno-metric-value {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.xeno-scanner-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.xeno-scanner-card-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.xeno-copy-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-family: var(--font-sans);
+}
+
+.xeno-copy-btn:hover {
+  color: var(--purple);
+}
+
+.xeno-hot-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--alien-green), transparent);
+  opacity: 0.5;
+}
+
+/* ── Type Badges ── */
+.xeno-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.xeno-badge-alpha {
+  background: rgba(0, 200, 255, 0.08);
+  border-color: rgba(0, 200, 255, 0.2);
+  color: var(--cyan);
+}
+
+.xeno-badge-risk {
+  background: rgba(239, 68, 102, 0.08);
+  border-color: rgba(239, 68, 102, 0.2);
+  color: var(--red);
+}
+
+.xeno-badge-safe {
+  background: rgba(0, 214, 143, 0.08);
+  border-color: rgba(0, 214, 143, 0.2);
+  color: var(--green);
+}
+
+.xeno-badge-trending {
+  background: rgba(155, 109, 255, 0.08);
+  border-color: rgba(155, 109, 255, 0.2);
+  color: var(--purple);
+}
+
+/* ── Feed Page ── */
+.xeno-feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.xeno-feed-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.xeno-control-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.xeno-control-btn:hover {
+  border-color: var(--border-bright);
+  color: var(--text-primary);
+}
+
+.xeno-control-btn.active {
+  background: rgba(155, 109, 255, 0.1);
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+/* ── Feed Stats Bar ── */
+.xeno-feed-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.xeno-feed-stat {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+}
+
+.xeno-feed-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.xeno-feed-stat-value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+/* ── Feed List Panel ── */
+.xeno-feed-list-panel {
+  padding: 1.25rem;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Feed Row ── */
+.xeno-feed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.xeno-feed-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.xeno-feed-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.xeno-feed-row-name {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.xeno-feed-row-addr {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.xeno-feed-row-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 70px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.xeno-feed-row-amount .muted {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.xeno-feed-row-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  min-width: 50px;
+  text-align: right;
+}
+
+/* ── Analytics ── */
+.xeno-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.xeno-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+.xeno-metric-card {
+  padding: 1.25rem;
+}
+
+.xeno-metric-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.xeno-metric-card-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.xeno-metric-card-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.xeno-metric-card-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.xeno-metric-card-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.xeno-charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.xeno-chart-card {
+  padding: 1.5rem;
+}
+
+/* ── Pie Legend ── */
+.xeno-pie-legend {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.xeno-pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+}
+
+.xeno-pie-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.xeno-pie-val {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Top Tokens ── */
+.xeno-top-tokens {
+  padding: 1.5rem;
+}
+
+.xeno-top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.xeno-top-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+}
+
+.xeno-top-rank {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(155, 109, 255, 0.1);
+  color: var(--purple);
+  font-weight: 800;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.xeno-top-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.xeno-top-name {
+  font-weight: 700;
+  color: var(--text-primary);
+  display: block;
+}
+
+.xeno-top-addr {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.xeno-top-vol {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.xeno-top-vol .muted {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* ── Trades ── */
+.xeno-trades-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.xeno-trades-volume-stats {
+  display: flex;
+  gap: 1rem;
+}
+
+.xeno-vol-badge {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid;
+}
+
+.xeno-vol-badge.buy {
+  background: rgba(0, 214, 143, 0.06);
+  border-color: rgba(0, 214, 143, 0.2);
+}
+
+.xeno-vol-badge.buy span {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.xeno-vol-badge.buy strong {
+  font-size: 1.1rem;
+  font-family: var(--font-mono);
+  color: var(--green);
+}
+
+.xeno-vol-badge.sell {
+  background: rgba(239, 68, 102, 0.06);
+  border-color: rgba(239, 68, 102, 0.2);
+}
+
+.xeno-vol-badge.sell span {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
+.xeno-vol-badge.sell strong {
+  font-size: 1.1rem;
+  font-family: var(--font-mono);
+  color: var(--red);
+}
+
+.xeno-trades-table-wrap {
+  padding: 0;
+  overflow: hidden;
+}
+
+.xeno-trade-token-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xeno-trade-name {
+  display: block;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.xeno-trade-addr {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.xeno-trade-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.xeno-trade-amount .muted {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.xeno-trade-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.xeno-icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+
+.xeno-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+/* ── Spinner ── */
+.xeno-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(155, 109, 255, 0.2);
+  border-top-color: var(--purple);
+  animation: spin-slow 0.8s linear infinite;
+}
+
+.xeno-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ── Feature Cards ── */
+.xeno-features-section {
+  margin-top: 2.5rem;
+}
+
+.xeno-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.xeno-feature-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  transition: border-color 0.2s;
+}
+
+.xeno-feature-card:hover {
+  border-color: rgba(155, 109, 255, 0.2);
+}
+
+.xeno-feature-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.xeno-feature-card h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.xeno-feature-card p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Nav Pill Accent (Xenoscope purple) ── */
+.nav-pill-xeno {
+  border-color: rgba(155, 109, 255, 0.25) !important;
+  color: var(--purple) !important;
+}
+
+.nav-pill-xeno.active,
+.nav-pill-xeno:hover {
+  background: rgba(155, 109, 255, 0.1) !important;
+  border-color: var(--purple) !important;
+  box-shadow: 0 0 16px rgba(155, 109, 255, 0.15);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .xeno-overview-grid {
+    grid-template-columns: 1fr;
+  }
+  .xeno-charts-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .xeno-stats-row,
+  .xeno-metrics-row,
+  .xeno-feed-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .xeno-header {
+    flex-direction: column;
+  }
+  .xeno-scanner-header {
+    flex-direction: column;
+  }
+  .xeno-trades-header {
+    flex-direction: column;
+  }
+  .xeno-trades-volume-stats {
+    width: 100%;
+  }
+  .xeno-vol-badge {
+    flex: 1;
+  }
+  .xeno-filter-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .xeno-token-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .xeno-stats-row,
+  .xeno-metrics-row,
+  .xeno-feed-stats {
+    grid-template-columns: 1fr;
+  }
+}
