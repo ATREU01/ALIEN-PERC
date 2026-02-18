@@ -6,19 +6,21 @@
 import { useEffect, useRef, useState } from "react";
 
 export type PumpEvent = {
-  txType: "create" | "trade" | "migrate";
+  txType: "create" | "buy" | "sell" | "migrate";
   mint?: string;
   signature?: string;
   traderPublicKey?: string;
   tokenBondingCurve?: string;
   solAmount?: number;
   tokenAmount?: number;
+  initialBuy?: number;
   isBuy?: boolean;
   timestamp: number;
   name?: string;
   symbol?: string;
   marketCapSol?: number;
   vSolInBondingCurve?: number;
+  vTokensInBondingCurve?: number;
   uri?: string;
 };
 
@@ -56,6 +58,10 @@ export function usePumpSocket() {
         }
       };
 
+      // Track subscribed token mints for live trade updates
+      const subscribedMints = new Set<string>();
+      const MAX_TRADE_SUBS = 20;
+
       ws.onmessage = (event) => {
         if (!mountedRef.current) return;
 
@@ -63,24 +69,62 @@ export function usePumpSocket() {
           const data = JSON.parse(event.data);
 
           if (data.txType) {
+            // PumpPortal sends txType "buy"/"sell", not "trade"
+            // Derive isBuy from txType for backward compatibility
             const newEvent: PumpEvent = {
               txType: data.txType,
               mint: data.mint,
               signature: data.signature,
               traderPublicKey: data.traderPublicKey,
-              tokenBondingCurve: data.tokenBondingCurve,
+              tokenBondingCurve: data.tokenBondingCurve || data.bondingCurveKey,
               solAmount: data.solAmount,
               tokenAmount: data.tokenAmount,
-              isBuy: data.isBuy,
+              initialBuy: data.initialBuy,
+              isBuy: data.txType === "buy" || (data.txType === "create" && data.initialBuy > 0),
               timestamp: Date.now(),
               name: data.name,
               symbol: data.symbol,
               marketCapSol: data.marketCapSol,
               vSolInBondingCurve: data.vSolInBondingCurve,
+              vTokensInBondingCurve: data.vTokensInBondingCurve,
               uri: data.uri,
             };
 
+            // For new tokens, subscribe to their trades for live market cap updates
+            if (data.txType === "create" && data.mint && ws.readyState === WebSocket.OPEN) {
+              if (subscribedMints.size >= MAX_TRADE_SUBS) {
+                const oldest = subscribedMints.values().next().value;
+                if (oldest) {
+                  ws.send(JSON.stringify({ method: "unsubscribeTokenTrade", keys: [oldest] }));
+                  subscribedMints.delete(oldest);
+                }
+              }
+              ws.send(JSON.stringify({ method: "subscribeTokenTrade", keys: [data.mint] }));
+              subscribedMints.add(data.mint);
+            }
+
             setEvents((prev) => {
+              // For trade events on known tokens, update the existing entry's market cap
+              if ((newEvent.txType === "buy" || newEvent.txType === "sell") && newEvent.mint) {
+                const existingIdx = prev.findIndex((e) => e.mint === newEvent.mint);
+                if (existingIdx !== -1) {
+                  const updated = [...prev];
+                  updated[existingIdx] = {
+                    ...updated[existingIdx],
+                    marketCapSol: newEvent.marketCapSol ?? updated[existingIdx].marketCapSol,
+                    vSolInBondingCurve: newEvent.vSolInBondingCurve ?? updated[existingIdx].vSolInBondingCurve,
+                    vTokensInBondingCurve: newEvent.vTokensInBondingCurve ?? updated[existingIdx].vTokensInBondingCurve,
+                  };
+                  if (
+                    newEvent.signature &&
+                    prev.some((e) => e.signature === newEvent.signature)
+                  ) {
+                    return updated;
+                  }
+                  return [newEvent, ...updated].slice(0, MAX_EVENTS);
+                }
+              }
+
               // Deduplicate by signature
               if (
                 newEvent.signature &&
