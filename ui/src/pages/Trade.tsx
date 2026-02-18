@@ -21,7 +21,7 @@ import {
   buildCloseAccountTx,
   readMint,
 } from "../lib/transactions";
-import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
+import { getAssociatedTokenAddress, getAccount, getMint, createAssociatedTokenAccountInstruction, createMintToInstruction } from "@solana/spl-token";
 import { parseAccount as parseAcctRaw, parseMarketState } from "../lib/percolator";
 
 const COMPUTE_BUDGET_ID = ComputeBudgetProgram.programId;
@@ -69,6 +69,9 @@ export function Trade() {
   const [positionsTab, setPositionsTab] = useState<"positions" | "orders" | "history">("positions");
   const [tradePhase, setTradePhase] = useState<string | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
+  const [walletTokenBalance, setWalletTokenBalance] = useState<bigint | null>(null);
+  const [isMintAuthority, setIsMintAuthority] = useState(false);
+  const [mintingTokens, setMintingTokens] = useState(false);
 
   const userAccounts = useMemo(() => accounts.filter((a) => a.kind === "user"), [accounts]);
   const lpAccounts = useMemo(() => accounts.filter((a) => a.kind === "lp"), [accounts]);
@@ -87,6 +90,73 @@ export function Trade() {
 
   const tokenDecimals = useMemo(() => state ? getTokenDecimals(state.collateralMint) : 6, [state]);
   const tokenMultiplier = useMemo(() => 10 ** tokenDecimals, [tokenDecimals]);
+  const tokenName = useMemo(() => state ? (getMarketName(state.collateralMint)?.name || "Token") : "Token", [state]);
+
+  // ─── Fetch wallet's collateral token balance ──────────────────────────────
+
+  useEffect(() => {
+    if (!publicKey || !rawData || !connection) { setWalletTokenBalance(null); setIsMintAuthority(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const mint = readMint(rawData);
+        // Check balance
+        try {
+          const ata = await getAssociatedTokenAddress(mint, publicKey);
+          const info = await getAccount(connection, ata);
+          if (!cancelled) setWalletTokenBalance(info.amount);
+        } catch {
+          if (!cancelled) setWalletTokenBalance(0n);
+        }
+        // Check if this wallet is the mint authority (for devnet faucet)
+        try {
+          const mintInfo = await getMint(connection, mint);
+          if (!cancelled) setIsMintAuthority(mintInfo.mintAuthority?.equals(publicKey) ?? false);
+        } catch {
+          if (!cancelled) setIsMintAuthority(false);
+        }
+      } catch {
+        if (!cancelled) { setWalletTokenBalance(null); setIsMintAuthority(false); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [publicKey, rawData, connection, status]);
+
+  // ─── Devnet faucet: mint test tokens ──────────────────────────────────────
+
+  const handleMintTestTokens = async () => {
+    if (!publicKey || !rawData || !isMintAuthority || mintingTokens) return;
+    setMintingTokens(true);
+    setTradeError(null);
+    try {
+      const mint = readMint(rawData);
+      const ata = await getAssociatedTokenAddress(mint, publicKey);
+      const tx = new Transaction();
+
+      // Create ATA if needed
+      let ataExists = false;
+      try { await getAccount(connection, ata); ataExists = true; } catch { /* doesn't exist */ }
+      if (!ataExists) {
+        tx.add(createAssociatedTokenAccountInstruction(publicKey, ata, publicKey, mint));
+      }
+
+      // Mint 1000 tokens (6 decimals)
+      const mintAmount = BigInt(1000 * tokenMultiplier);
+      tx.add(createMintToInstruction(mint, ata, publicKey, mintAmount));
+
+      await execute(async () => ({ tx }));
+
+      // Refresh balance
+      try {
+        const info = await getAccount(connection, ata);
+        setWalletTokenBalance(info.amount);
+      } catch { /* will update on next poll */ }
+    } catch (e: any) {
+      setTradeError(e.message || "Mint failed");
+    } finally {
+      setMintingTokens(false);
+    }
+  };
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -424,8 +494,64 @@ export function Trade() {
                 <button className={`order-tab ${orderSide === "short" ? "active-short" : ""}`} onClick={() => setOrderSide("short")}>Short</button>
               </div>
 
+              {/* Wallet token balance + Get Tokens */}
+              {connected && walletTokenBalance !== null && (
+                <div className={`token-balance-bar ${walletTokenBalance === 0n ? "token-balance-empty" : ""}`}>
+                  <div className="flex-between">
+                    <span className="text-muted" style={{ fontSize: "0.75rem" }}>Wallet Balance</span>
+                    <span style={{ fontWeight: 600, fontSize: "0.85rem" }} className={walletTokenBalance > 0n ? "text-cyan" : "text-red"}>
+                      {(Number(walletTokenBalance) / tokenMultiplier).toFixed(2)} {tokenName}
+                    </span>
+                  </div>
+                  {walletTokenBalance === 0n && (
+                    <div className="token-get-card">
+                      <p style={{ fontSize: "0.8rem", marginBottom: "0.5rem", lineHeight: 1.4 }}>
+                        <span className="text-red" style={{ fontWeight: 600 }}>No {tokenName} tokens found.</span>{" "}
+                        You need {tokenName} tokens as collateral to open trades.
+                      </p>
+                      {isMintAuthority && (
+                        <button
+                          className="btn-deposit"
+                          onClick={handleMintTestTokens}
+                          disabled={mintingTokens}
+                          style={{ marginBottom: "0.5rem" }}
+                        >
+                          {mintingTokens ? "Minting..." : `Mint 1,000 Test ${tokenName}`}
+                        </button>
+                      )}
+                      {!isMintAuthority && (
+                        <p className="text-muted" style={{ fontSize: "0.75rem", lineHeight: 1.4 }}>
+                          Ask the protocol admin to airdrop test tokens to your wallet, or use{" "}
+                          <span className="text-cyan" style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem" }}>
+                            spl-token mint {state?.collateralMint ? truncateAddress(state.collateralMint) : "MINT"} 1000 YOUR_WALLET
+                          </span>
+                        </p>
+                      )}
+                      {state?.collateralMint && (
+                        <div style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
+                          <span className="text-muted">Mint: </span>
+                          <span className="text-cyan" style={{ fontFamily: "var(--font-mono)", cursor: "pointer" }}
+                            onClick={() => navigator.clipboard.writeText(state.collateralMint)}
+                            title="Click to copy"
+                          >{truncateAddress(state.collateralMint)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="form-group">
-                <label className="form-label">Amount (Collateral)</label>
+                <label className="form-label">
+                  <span>Amount (Collateral)</span>
+                  {connected && walletTokenBalance !== null && walletTokenBalance > 0n && (
+                    <button
+                      className="text-cyan"
+                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", fontFamily: "var(--font-display)", letterSpacing: "1px" }}
+                      onClick={() => setAmount((Number(walletTokenBalance) / tokenMultiplier).toString())}
+                    >MAX</button>
+                  )}
+                </label>
                 <input type="number" className="form-input" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </div>
 
