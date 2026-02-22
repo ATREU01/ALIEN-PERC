@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { route: ROUTES.HOME, label: "Home" },
   { route: ROUTES.TRADE, label: "Trade" },
   { route: ROUTES.EARN, label: "Earn" },
+  { route: ROUTES.CHART, label: "Chart", xeno: true },
   { route: ROUTES.LAUNCHPAD, label: "Launchpad", accent: true, badge: "BETA" },
   { route: ROUTES.XENOSCOPE, label: "Xenoscope", xeno: true },
   { route: ROUTES.REGISTER, label: "Register" },
