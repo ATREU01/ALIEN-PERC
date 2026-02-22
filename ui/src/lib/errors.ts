@@ -34,6 +34,8 @@ export const PERCOLATOR_ERRORS: Record<number, ErrorInfo> = {
   23: { name: "AccountKindMismatch", hint: "Wrong account type for this operation." },
   24: { name: "InvalidTokenAccount", hint: "Token account is invalid. Make sure you have the collateral token in your wallet." },
   25: { name: "InvalidTokenProgram", hint: "Invalid token program." },
+  26: { name: "InvalidConfigParam", hint: "Invalid config parameter. Check per-market admin limits and constraints." },
+  27: { name: "HyperpTradeNoCpiDisabled", hint: "Hyperp mode requires CPI trades. Use the trade panel instead of direct TradeNoCpi." },
 };
 
 /**

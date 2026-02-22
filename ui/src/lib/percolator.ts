@@ -13,8 +13,8 @@ import { PublicKey, Connection } from "@solana/web3.js";
 const MAGIC = 0x504552434f4c4154n; // "PERCOLAT"
 const HEADER_LEN = 72;
 const CONFIG_OFFSET = HEADER_LEN;  // 72
-const CONFIG_LEN = 320;
-const ENGINE_OFF = CONFIG_OFFSET + CONFIG_LEN; // 392
+const CONFIG_LEN = 368;
+const ENGINE_OFF = CONFIG_OFFSET + CONFIG_LEN; // 440
 
 // Engine layout offsets (relative to ENGINE_OFF)
 const ENGINE_VAULT_OFF = 0;          // u128

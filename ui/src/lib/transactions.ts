@@ -153,7 +153,7 @@ export async function ensureAta(
 // SLAB PARSING HELPERS (for finding user account, LP index, etc.)
 // ============================================================================
 
-const ENGINE_OFF = 392;
+const ENGINE_OFF = 440;
 const ENGINE_BITMAP_OFF = 408;
 const ENGINE_ACCOUNTS_OFF = 9136;
 const ACCOUNT_SIZE = 240;
@@ -501,6 +501,9 @@ export async function buildInitMarketTx(
     encU8(args.invert),
     encU32(0),                              // unitScale
     encU64(args.initialMarkPriceE6),        // initialMarkPriceE6
+    encU128(1_000_000_000_000n),            // maxMaintenanceFeePerSlot (admin limit)
+    encU128(1_000_000_000_000n),            // maxRiskThreshold (admin limit)
+    encU64(0n),                             // minOraclePriceCapE2bps (admin limit, 0=no floor)
     encU64(100n),                           // warmupPeriodSlots
     encU64(BigInt(args.maintenanceMarginBps)),
     encU64(BigInt(args.initialMarginBps)),

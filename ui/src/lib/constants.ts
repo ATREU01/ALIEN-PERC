@@ -32,7 +32,7 @@ export const CONTRACT_ADDRESS: string =
   import.meta.env.VITE_CONTRACT_ADDRESS || "";
 
 // On-chain slab account size (ENGINE_OFF + ENGINE_LEN for 4096 accounts)
-export const SLAB_DATA_SIZE = 992_560;
+export const SLAB_DATA_SIZE = 992_616;
 
 // Minimum LP collateral deposit (SOL)
 export const MIN_COLLATERAL_SOL = 3;
