@@ -1280,6 +1280,70 @@ createServer(async (req, res) => {
     }
   }
 
+  // ─── CHART PAGE API ROUTES ─────────────────────────────────────────
+  // Proxy endpoints for the ALIENTOR Chart scanner page
+
+  // --- GET /api/chart/token/:address --- DexScreener proxy for token data
+  if (urlPath_.startsWith("/api/chart/token/") && req.method === "GET") {
+    const address = urlPath_.replace("/api/chart/token/", "").trim();
+    if (!address || address.length < 30) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Invalid address" }));
+    }
+    try {
+      const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${encodeURIComponent(address)}`, {
+        headers: { "Accept": "application/json" },
+        signal: AbortSignal.timeout(10000),
+      });
+      const dexData = await dexRes.json();
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ success: true, pairs: dexData?.pairs || [] }));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "DexScreener upstream error" }));
+    }
+  }
+
+  // --- GET /api/chart/pump/:mint --- Pump.fun token data proxy
+  if (urlPath_.startsWith("/api/chart/pump/") && req.method === "GET") {
+    const mint = urlPath_.replace("/api/chart/pump/", "").trim();
+    if (!mint || mint.length < 30) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Invalid mint" }));
+    }
+    try {
+      const pumpRes = await fetch(`https://frontend-api.pump.fun/coins/${encodeURIComponent(mint)}`, {
+        headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!pumpRes.ok) {
+        res.writeHead(pumpRes.status, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Pump.fun returned " + pumpRes.status }));
+      }
+      const pumpData = await pumpRes.json();
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ success: true, token: pumpData }));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Pump.fun upstream error" }));
+    }
+  }
+
+  // --- GET /api/chart/market-prices --- CoinGecko BTC+SOL proxy
+  if (urlPath_ === "/api/chart/market-prices" && req.method === "GET") {
+    try {
+      const cgRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,solana&vs_currencies=usd", {
+        signal: AbortSignal.timeout(8000),
+      });
+      const cgData = await cgRes.json();
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ success: true, prices: cgData }));
+    } catch (err) {
+      res.writeHead(502, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "CoinGecko upstream error" }));
+    }
+  }
+
   // Static files
   let urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/index.html";

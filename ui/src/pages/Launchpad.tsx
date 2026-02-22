@@ -543,6 +543,22 @@ export function Launchpad() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
 
+  // Molt Bot passcode gate
+  const [moltPasscode, setMoltPasscode] = useState("");
+  const [moltUnlocked, setMoltUnlocked] = useState(false);
+  const [moltPasscodeError, setMoltPasscodeError] = useState(false);
+
+  const handleMoltPasscode = () => {
+    // Passcode check — the bot owner sets this
+    if (moltPasscode.trim().toUpperCase() === "MOLT") {
+      setMoltUnlocked(true);
+      setMoltPasscodeError(false);
+    } else {
+      setMoltPasscodeError(true);
+      setTimeout(() => setMoltPasscodeError(false), 2000);
+    }
+  };
+
   const SUB_TABS: { key: SubTab; label: string; icon: JSX.Element }[] = [
     {
       key: "launch",
@@ -1428,146 +1444,210 @@ export function Launchpad() {
         {/* ═══ MOLT BOT TAB ═══ */}
         {activeTab === "moltbot" && (
           <section className="molt-bot-coming-soon">
-            <div className="molt-bot-gate">
-              {/* Molt Bot visual */}
-              <div className="molt-bot-icon-wrapper">
-                <svg width="72" height="72" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.9 }}>
-                  <circle cx="12" cy="12" r="10" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" opacity="0.3" />
-                  <circle cx="12" cy="12" r="6" stroke="var(--alien-green)" strokeWidth="1" fill="none" opacity="0.15" />
-                  <circle cx="9" cy="10" r="1.5" fill="var(--alien-green)" opacity="0.8" />
-                  <circle cx="15" cy="10" r="1.5" fill="var(--alien-green)" opacity="0.8" />
-                  <path d="M9 14.5c.85.63 1.885 1 3 1s2.15-.37 3-1" stroke="var(--alien-green)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                  <path d="M12 2v4" stroke="var(--cyan)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-                  <path d="M4 8l2.5 1.5" stroke="var(--cyan)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-                  <path d="M20 8l-2.5 1.5" stroke="var(--cyan)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-                </svg>
-                <div className="molt-bot-pulse-ring" />
-                <div className="molt-bot-pulse-ring molt-bot-pulse-ring-2" />
-              </div>
-
-              <h2 style={{ color: "var(--alien-green)", marginBottom: "0.5rem", fontSize: "1.5rem" }}>
-                MOLT BOT
-              </h2>
-              <p className="text-muted" style={{ fontSize: "1rem", marginBottom: "1.5rem", maxWidth: 480 }}>
-                Autonomous Bonding Curve Management Agent
-              </p>
-
-              {/* Coming Soon badge */}
-              <div className="molt-bot-badge">
-                <span className="molt-bot-badge-dot" />
-                COMING SOON
-              </div>
-
-              {/* Feature preview cards */}
-              <div className="molt-bot-features">
-                <div className="molt-bot-feature">
-                  <div className="molt-bot-feature-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="1.5">
-                      <path d="M3 3v18h18" strokeLinecap="round" />
-                      <path d="M7 16l4-8 4 4 5-10" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <h4>Multi-Curve Tracking</h4>
-                  <p>Monitor up to 50 bonding curves simultaneously with real-time health scoring and phase detection.</p>
+            {/* ── PASSCODE GATE ── */}
+            {!moltUnlocked ? (
+              <div className="molt-bot-gate">
+                <div className="molt-bot-icon-wrapper">
+                  <svg width="72" height="72" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.9 }}>
+                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" opacity="0.6" />
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" opacity="0.4" />
+                    <circle cx="12" cy="16" r="1.5" fill="var(--alien-green)" opacity="0.8" />
+                    <path d="M12 17.5v1.5" stroke="var(--alien-green)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+                  </svg>
+                  <div className="molt-bot-pulse-ring" />
+                  <div className="molt-bot-pulse-ring molt-bot-pulse-ring-2" />
                 </div>
-                <div className="molt-bot-feature">
-                  <div className="molt-bot-feature-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="1.5">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" strokeLinecap="round" />
+
+                <h2 style={{ color: "var(--alien-green)", marginBottom: "0.5rem", fontSize: "1.5rem" }}>
+                  MOLT BOT
+                </h2>
+                <p className="text-muted" style={{ fontSize: "0.9rem", marginBottom: "1.5rem", maxWidth: 400 }}>
+                  This section is restricted. Enter your access code to continue.
+                </p>
+
+                <div className="molt-bot-passcode-form">
+                  <input
+                    type="password"
+                    className={`form-input molt-bot-passcode-input ${moltPasscodeError ? "molt-bot-passcode-error" : ""}`}
+                    placeholder="Enter access code"
+                    value={moltPasscode}
+                    onChange={(e) => setMoltPasscode(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleMoltPasscode(); }}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <button
+                    className="btn-primary molt-bot-passcode-btn"
+                    onClick={handleMoltPasscode}
+                    disabled={moltPasscode.length === 0}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="10" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
-                  </div>
-                  <h4>Lifecycle Phases</h4>
-                  <p>Automatic phase detection: Pre-Bond, Bonding, Graduating, Graduated, and Dormant with per-phase strategies.</p>
+                    Unlock
+                  </button>
                 </div>
-                <div className="molt-bot-feature">
-                  <div className="molt-bot-feature-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--alien-green)" strokeWidth="1.5">
-                      <path d="M22 12h-4l-3 9L9 3l-3 9H2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <h4>Health Scoring</h4>
-                  <p>7-factor health analysis: volume, stability, progress, buy pressure, holders, liquidity depth, and age.</p>
-                </div>
-                <div className="molt-bot-feature">
-                  <div className="molt-bot-feature-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" strokeWidth="1.5">
-                      <rect x="2" y="3" width="20" height="14" rx="2" />
-                      <path d="M8 21h8M12 17v4" strokeLinecap="round" />
-                      <path d="M7 8h2M7 11h4" strokeLinecap="round" opacity="0.6" />
-                    </svg>
-                  </div>
-                  <h4>Telegram Integration</h4>
-                  <p>Full command interface via your Telegram bot. Track, analyze, simulate trades, and get alerts on the go.</p>
+                {moltPasscodeError && (
+                  <p className="text-red" style={{ fontSize: "0.82rem", marginTop: "0.75rem" }}>
+                    Invalid access code. Try again.
+                  </p>
+                )}
+
+                <div className="molt-bot-footer" style={{ marginTop: "2rem" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
+                  </svg>
+                  <span className="text-muted" style={{ fontSize: "0.8rem" }}>
+                    Access codes are distributed to authorized Molt Bot operators.
+                    Contact the Alientor team if you need access.
+                  </span>
                 </div>
               </div>
+            ) : (
+              /* ── COMING SOON CONTENT (unlocked) ── */
+              <div className="molt-bot-gate">
+                {/* Molt Bot visual */}
+                <div className="molt-bot-icon-wrapper">
+                  <svg width="72" height="72" viewBox="0 0 24 24" fill="none" style={{ opacity: 0.9 }}>
+                    <circle cx="12" cy="12" r="10" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" opacity="0.3" />
+                    <circle cx="12" cy="12" r="6" stroke="var(--alien-green)" strokeWidth="1" fill="none" opacity="0.15" />
+                    <circle cx="9" cy="10" r="1.5" fill="var(--alien-green)" opacity="0.8" />
+                    <circle cx="15" cy="10" r="1.5" fill="var(--alien-green)" opacity="0.8" />
+                    <path d="M9 14.5c.85.63 1.885 1 3 1s2.15-.37 3-1" stroke="var(--alien-green)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                    <path d="M12 2v4" stroke="var(--cyan)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+                    <path d="M4 8l2.5 1.5" stroke="var(--cyan)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+                    <path d="M20 8l-2.5 1.5" stroke="var(--cyan)" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+                  </svg>
+                  <div className="molt-bot-pulse-ring" />
+                  <div className="molt-bot-pulse-ring molt-bot-pulse-ring-2" />
+                </div>
 
-              {/* Architecture preview */}
-              <div className="molt-bot-arch">
-                <h4 className="text-muted" style={{ marginBottom: "0.75rem", fontSize: "0.8rem", letterSpacing: "0.1em" }}>
-                  ARCHITECTURE
-                </h4>
-                <div className="molt-bot-arch-flow">
-                  <div className="molt-bot-arch-node">
-                    <span className="molt-bot-arch-label">Telegram Bot</span>
-                    <span className="molt-bot-arch-sub">Commands & Alerts</span>
+                <h2 style={{ color: "var(--alien-green)", marginBottom: "0.5rem", fontSize: "1.5rem" }}>
+                  MOLT BOT
+                </h2>
+                <p className="text-muted" style={{ fontSize: "1rem", marginBottom: "1.5rem", maxWidth: 480 }}>
+                  Autonomous Bonding Curve Management Agent
+                </p>
+
+                {/* Coming Soon badge */}
+                <div className="molt-bot-badge">
+                  <span className="molt-bot-badge-dot" />
+                  COMING SOON
+                </div>
+
+                {/* Feature preview cards */}
+                <div className="molt-bot-features">
+                  <div className="molt-bot-feature">
+                    <div className="molt-bot-feature-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="1.5">
+                        <path d="M3 3v18h18" strokeLinecap="round" />
+                        <path d="M7 16l4-8 4 4 5-10" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <h4>Multi-Curve Tracking</h4>
+                    <p>Monitor up to 50 bonding curves simultaneously with real-time health scoring and phase detection.</p>
                   </div>
-                  <div className="molt-bot-arch-arrow">
-                    <svg width="24" height="12" viewBox="0 0 24 12">
-                      <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    </svg>
+                  <div className="molt-bot-feature">
+                    <div className="molt-bot-feature-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" strokeWidth="1.5">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <h4>Lifecycle Phases</h4>
+                    <p>Automatic phase detection: Pre-Bond, Bonding, Graduating, Graduated, and Dormant with per-phase strategies.</p>
                   </div>
-                  <div className="molt-bot-arch-node molt-bot-arch-node-active">
-                    <span className="molt-bot-arch-label">Molt Bot Agent</span>
-                    <span className="molt-bot-arch-sub">Curve Manager</span>
+                  <div className="molt-bot-feature">
+                    <div className="molt-bot-feature-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--alien-green)" strokeWidth="1.5">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <h4>Health Scoring</h4>
+                    <p>7-factor health analysis: volume, stability, progress, buy pressure, holders, liquidity depth, and age.</p>
                   </div>
-                  <div className="molt-bot-arch-arrow">
-                    <svg width="24" height="12" viewBox="0 0 24 12">
-                      <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="molt-bot-arch-node">
-                    <span className="molt-bot-arch-label">Alientor Engine</span>
-                    <span className="molt-bot-arch-sub">Fee Routing</span>
+                  <div className="molt-bot-feature">
+                    <div className="molt-bot-feature-icon">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--yellow)" strokeWidth="1.5">
+                        <rect x="2" y="3" width="20" height="14" rx="2" />
+                        <path d="M8 21h8M12 17v4" strokeLinecap="round" />
+                        <path d="M7 8h2M7 11h4" strokeLinecap="round" opacity="0.6" />
+                      </svg>
+                    </div>
+                    <h4>Telegram Integration</h4>
+                    <p>Full command interface via your Telegram bot. Track, analyze, simulate trades, and get alerts on the go.</p>
                   </div>
                 </div>
-                <div className="molt-bot-arch-flow" style={{ marginTop: "0.75rem" }}>
-                  <div className="molt-bot-arch-node molt-bot-arch-node-dim">
-                    <span className="molt-bot-arch-label">Pump.fun</span>
-                    <span className="molt-bot-arch-sub">Bonding Curves</span>
+
+                {/* Architecture preview */}
+                <div className="molt-bot-arch">
+                  <h4 className="text-muted" style={{ marginBottom: "0.75rem", fontSize: "0.8rem", letterSpacing: "0.1em" }}>
+                    ARCHITECTURE
+                  </h4>
+                  <div className="molt-bot-arch-flow">
+                    <div className="molt-bot-arch-node">
+                      <span className="molt-bot-arch-label">Telegram Bot</span>
+                      <span className="molt-bot-arch-sub">Commands & Alerts</span>
+                    </div>
+                    <div className="molt-bot-arch-arrow">
+                      <svg width="24" height="12" viewBox="0 0 24 12">
+                        <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <div className="molt-bot-arch-node molt-bot-arch-node-active">
+                      <span className="molt-bot-arch-label">Molt Bot Agent</span>
+                      <span className="molt-bot-arch-sub">Curve Manager</span>
+                    </div>
+                    <div className="molt-bot-arch-arrow">
+                      <svg width="24" height="12" viewBox="0 0 24 12">
+                        <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--alien-green)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <div className="molt-bot-arch-node">
+                      <span className="molt-bot-arch-label">Alientor Engine</span>
+                      <span className="molt-bot-arch-sub">Fee Routing</span>
+                    </div>
                   </div>
-                  <div className="molt-bot-arch-arrow">
-                    <svg width="24" height="12" viewBox="0 0 24 12">
-                      <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--cyan)" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.5" />
-                    </svg>
-                  </div>
-                  <div className="molt-bot-arch-node molt-bot-arch-node-dim">
-                    <span className="molt-bot-arch-label">PumpSwap</span>
-                    <span className="molt-bot-arch-sub">Post-Graduation</span>
-                  </div>
-                  <div className="molt-bot-arch-arrow">
-                    <svg width="24" height="12" viewBox="0 0 24 12">
-                      <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--cyan)" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.5" />
-                    </svg>
-                  </div>
-                  <div className="molt-bot-arch-node molt-bot-arch-node-dim">
-                    <span className="molt-bot-arch-label">Percolator</span>
-                    <span className="molt-bot-arch-sub">Derivatives</span>
+                  <div className="molt-bot-arch-flow" style={{ marginTop: "0.75rem" }}>
+                    <div className="molt-bot-arch-node molt-bot-arch-node-dim">
+                      <span className="molt-bot-arch-label">Pump.fun</span>
+                      <span className="molt-bot-arch-sub">Bonding Curves</span>
+                    </div>
+                    <div className="molt-bot-arch-arrow">
+                      <svg width="24" height="12" viewBox="0 0 24 12">
+                        <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--cyan)" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.5" />
+                      </svg>
+                    </div>
+                    <div className="molt-bot-arch-node molt-bot-arch-node-dim">
+                      <span className="molt-bot-arch-label">PumpSwap</span>
+                      <span className="molt-bot-arch-sub">Post-Graduation</span>
+                    </div>
+                    <div className="molt-bot-arch-arrow">
+                      <svg width="24" height="12" viewBox="0 0 24 12">
+                        <path d="M0 6h20M16 2l4 4-4 4" stroke="var(--cyan)" strokeWidth="1" fill="none" strokeLinecap="round" opacity="0.5" />
+                      </svg>
+                    </div>
+                    <div className="molt-bot-arch-node molt-bot-arch-node-dim">
+                      <span className="molt-bot-arch-label">Percolator</span>
+                      <span className="molt-bot-arch-sub">Derivatives</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="molt-bot-footer">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
-                </svg>
-                <span className="text-muted" style={{ fontSize: "0.8rem" }}>
-                  The Molt Bot agent is currently in development. It will connect your existing Telegram bot
-                  to the Alientor bonding curve management system for autonomous multi-curve operations.
-                </span>
+                <div className="molt-bot-footer">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
+                  </svg>
+                  <span className="text-muted" style={{ fontSize: "0.8rem" }}>
+                    The Molt Bot agent is currently in development. It will connect your existing Telegram bot
+                    to the Alientor bonding curve management system for autonomous multi-curve operations.
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </section>
         )}
 
