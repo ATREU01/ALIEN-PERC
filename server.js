@@ -5,6 +5,7 @@ import { join, extname, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, generateKeyPairSync } from "node:crypto";
 import { getSolPrice, getSessionStats, resolveTokenMetadata, fetchPumpTokenData, searchDexScreener, getJupiterPrice, incrementStat } from "./xenoscope/xenoscope-engine.js";
+import { getMoltBotManager, CURVE_PHASE } from "./launchpad/molt-bot-curves.js";
 
 // ─── Zero external deps: built-in ed25519 keypair + base58 ──────
 const B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -988,6 +989,179 @@ createServer(async (req, res) => {
       description: "1% of all creator fees routed to Alientor Protocol treasury",
       network: "mainnet",
     }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // MOLT BOT API ROUTES (Bonding Curve Management Agent)
+  // ═══════════════════════════════════════════════════════════════
+
+  // CORS preflight for molt bot APIs
+  if (req.url?.startsWith("/api/molt") && req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    return res.end();
+  }
+
+  // --- GET /api/molt/dashboard ---
+  // Aggregate dashboard of all tracked bonding curves
+  if (urlPath_ === "/api/molt/dashboard" && req.method === "GET") {
+    try {
+      const manager = getMoltBotManager();
+      const dashboard = manager.getDashboard();
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify(dashboard));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // --- POST /api/molt/track ---
+  // Add a bonding curve to track
+  if (urlPath_ === "/api/molt/track" && req.method === "POST") {
+    try {
+      const body = await parseBody(req);
+      const { mint, name, symbol, curveType, curveParams } = body;
+      if (!mint) {
+        res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Missing mint address" }));
+      }
+
+      const manager = getMoltBotManager();
+      const curve = manager.trackCurve({ mint, name, symbol, curveType, curveParams });
+
+      // Auto-fetch pump data for the new curve
+      try {
+        const pumpData = await fetchPumpTokenData(mint);
+        if (pumpData) manager.ingestPumpData(mint, pumpData);
+      } catch { /* ignore initial fetch failure */ }
+
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ success: true, curve: curve.toJSON() }));
+    } catch (err) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // --- DELETE /api/molt/track/:mint ---
+  // Remove a curve from tracking
+  if (urlPath_.startsWith("/api/molt/track/") && req.method === "DELETE") {
+    const mint = urlPath_.replace("/api/molt/track/", "").trim();
+    if (!mint || mint.length < 32) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Invalid mint" }));
+    }
+
+    const manager = getMoltBotManager();
+    const removed = manager.untrackCurve(mint);
+    res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+    return res.end(JSON.stringify({ success: removed }));
+  }
+
+  // --- GET /api/molt/curve/:mint ---
+  // Detailed analysis for a single tracked curve
+  if (urlPath_.startsWith("/api/molt/curve/") && req.method === "GET") {
+    const mint = urlPath_.replace("/api/molt/curve/", "").trim();
+    if (!mint || mint.length < 32) {
+      res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: "Invalid mint" }));
+    }
+
+    try {
+      const manager = getMoltBotManager();
+
+      // Refresh data from pump.fun before returning
+      try {
+        const pumpData = await fetchPumpTokenData(mint);
+        if (pumpData) manager.ingestPumpData(mint, pumpData);
+      } catch { /* ignore */ }
+
+      const analysis = manager.getCurveAnalysis(mint);
+      if (!analysis) {
+        res.writeHead(404, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Curve not tracked" }));
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify(analysis));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // --- GET /api/molt/opportunities ---
+  // Best opportunities across all tracked curves
+  if (urlPath_ === "/api/molt/opportunities" && req.method === "GET") {
+    try {
+      const manager = getMoltBotManager();
+      const opportunities = manager.getOpportunities();
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ opportunities }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // --- POST /api/molt/simulate ---
+  // Simulate a buy or sell on a tracked curve
+  if (urlPath_ === "/api/molt/simulate" && req.method === "POST") {
+    try {
+      const body = await parseBody(req);
+      const { mint, action, amount } = body;
+      if (!mint || !action || !amount) {
+        res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Missing mint, action, or amount" }));
+      }
+
+      const manager = getMoltBotManager();
+      let result;
+      if (action === "buy") {
+        result = manager.simulateBuy(mint, parseFloat(amount));
+      } else if (action === "sell") {
+        result = manager.simulateSell(mint, parseFloat(amount));
+      } else {
+        res.writeHead(400, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Action must be 'buy' or 'sell'" }));
+      }
+
+      if (!result) {
+        res.writeHead(404, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+        return res.end(JSON.stringify({ error: "Curve not tracked" }));
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ simulation: result, action, amount: parseFloat(amount) }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // --- GET /api/molt/phases ---
+  // Get curves grouped by lifecycle phase
+  if (urlPath_ === "/api/molt/phases" && req.method === "GET") {
+    try {
+      const manager = getMoltBotManager();
+      const phases = {};
+      for (const phase of Object.values(CURVE_PHASE)) {
+        phases[phase] = manager.getCurvesByPhase(phase).map((c) => ({
+          mint: c.mint, symbol: c.symbol, name: c.name,
+          healthScore: c.healthScore, mcap: c.mcap,
+          progress: manager.getGraduationProgress(c.mint),
+        }));
+      }
+      res.writeHead(200, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ phases }));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json", ...SECURITY_HEADERS });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
