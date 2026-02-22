@@ -5896,3 +5896,196 @@ a.xeno-scanner-card {
 a.xeno-trade-token-cell {
   display: flex;
 }
+
+/* ============================================================================
+   MOLT BOT — Coming Soon Gate Styles
+   ============================================================================ */
+
+.molt-bot-coming-soon {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0 3rem;
+}
+
+.molt-bot-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 720px;
+  width: 100%;
+}
+
+.molt-bot-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 1.5rem;
+}
+
+.molt-bot-pulse-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--alien-green);
+  opacity: 0;
+  animation: moltPulse 3s ease-out infinite;
+}
+
+.molt-bot-pulse-ring-2 {
+  animation-delay: 1.5s;
+}
+
+@keyframes moltPulse {
+  0% { transform: scale(0.8); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.molt-bot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border: 1px solid rgba(0, 230, 138, 0.3);
+  border-radius: 20px;
+  background: rgba(0, 230, 138, 0.06);
+  color: var(--alien-green);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  margin-bottom: 2.5rem;
+}
+
+.molt-bot-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--alien-green);
+  animation: moltDot 2s ease-in-out infinite;
+}
+
+@keyframes moltDot {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.molt-bot-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.molt-bot-feature {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: left;
+  transition: border-color 0.2s;
+}
+
+.molt-bot-feature:hover {
+  border-color: rgba(0, 230, 138, 0.2);
+}
+
+.molt-bot-feature-icon {
+  margin-bottom: 0.75rem;
+  opacity: 0.85;
+}
+
+.molt-bot-feature h4 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+}
+
+.molt-bot-feature p {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Architecture diagram */
+.molt-bot-arch {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.molt-bot-arch-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.molt-bot-arch-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  min-width: 100px;
+}
+
+.molt-bot-arch-node-active {
+  border-color: var(--alien-green);
+  background: rgba(0, 230, 138, 0.04);
+  box-shadow: 0 0 12px rgba(0, 230, 138, 0.08);
+}
+
+.molt-bot-arch-node-dim {
+  opacity: 0.5;
+}
+
+.molt-bot-arch-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.molt-bot-arch-sub {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.molt-bot-arch-arrow {
+  flex-shrink: 0;
+}
+
+.molt-bot-footer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  text-align: left;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .molt-bot-features {
+    grid-template-columns: 1fr;
+  }
+  .molt-bot-arch-flow {
+    flex-direction: column;
+  }
+  .molt-bot-arch-arrow {
+    transform: rotate(90deg);
+  }
+}
